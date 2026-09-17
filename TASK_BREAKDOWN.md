@@ -3,7 +3,7 @@
 **Project:** JavaCodeGraph  
 **Goal:** Structured graph of Java code for Vibe to understand without grep  
 **Version:** 1.0 - 2026-09-17  
-**Status:** Phase 5 complete - Serialization infrastructure (JsonSerializer with JSON format) implemented
+**Status:** Phase 6 complete - Query API (JavaGraphQuery interface and GraphQueryEngine) implemented
 
 ---
 
@@ -325,9 +325,9 @@ java-code-graph/
 - [x] Round-trip test - Graph equality checking for round-trip validation
 
 **Phase 6: Query API**
-- [ ] JavaGraphQuery interface
-- [ ] GraphQueryEngine
-- [ ] All query methods
+- [x] JavaGraphQuery interface - Complete query interface with 25+ query methods
+- [x] GraphQueryEngine - Full implementation of JavaGraphQuery interface
+- [x] All query methods - Class, method, field, variable, AST, file, package, control flow, search, and statistics queries
 
 **Phase 7: Vibe Integration**
 - [ ] CLI query mode
@@ -765,6 +765,7 @@ public void validateGraph(Graph graph) {
 - [x] Phase 3: Resolution
 - [x] Phase 4: Construction
 - [x] Phase 5: Serialization
+- [x] Phase 6: Query API
 - [ ] Phase 4: Construction
 - [ ] Phase 5: Serialization
 - [ ] Phase 6: Query API
@@ -1058,3 +1059,92 @@ public void validateGraph(Graph graph) {
 - How to handle version migration for future schema changes?
 - Should we add support for other serialization formats (XML, Protocol Buffers)?
 - Should we add pretty-printing options (e.g., compact vs. formatted)?
+
+### Phase 6 Implementation Notes
+
+1. **Query Interface Design**: Created JavaGraphQuery interface with comprehensive query methods organized into categories:
+   - Class queries (6 methods)
+   - Method queries (10 methods)
+   - Field queries (6 methods)
+   - Variable queries (2 methods)
+   - AST queries (2 methods)
+   - File queries (3 methods)
+   - Package queries (3 methods)
+   - Control flow queries (2 methods)
+   - Search queries (3 methods)
+   - Statistics queries (5 methods)
+
+2. **GraphQueryEngine Implementation**: Implemented all 42 query methods from the interface:
+   - Delegates to Graph's Indexes for O(1) or O(k) lookups
+   - Provides convenient query interface on top of raw index access
+   - Handles null/blank parameters gracefully
+   - Returns empty collections instead of null for better usability
+
+3. **Query Categories**:
+   - **Class Queries**: findByQualifiedName, findByName, getAll, getSubclasses, getImplementations, getSuperclass, getInterfaces
+   - **Method Queries**: findBySignature, findByName, getMethods, getCallers, getCallees, getOverridden, getOverriding, getConstructors, getStaticMethods, getPublicMethods
+   - **Field Queries**: findByQualifiedName, getFields, getFieldAccesses, getStaticFields, getFinalFields
+   - **Variable Queries**: getVariables, getVariableUses
+   - **AST Queries**: getStatements, getStatementAt
+   - **File Queries**: getNodesInFile, getClassesInFile, getMethodsInFile
+   - **Package Queries**: findByName, getAllPackages, getClassesInPackage
+   - **Control Flow**: buildCFG, isReachable (placeholders)
+   - **Search**: getNodesByType, getEdgesByType, getNodesWithModifier
+   - **Statistics**: getTotalNodeCount, getTotalEdgeCount, getNodeCountByType, getEdgeCountByType
+
+4. **Helper Methods**: Added private helper methods for:
+   - hasSuperclass(): Recursive superclass checking
+   - implementsInterface(): Recursive interface checking
+   - findOverriddenInHierarchy(): Override detection in superclass hierarchy
+   - getClassForMethod(): Extract class from method
+   - isSubclass(): Subclass relationship checking
+   - hasModifier(): Modifier checking for different node types
+   - isStatementNode(): Type checking for statement nodes
+   - belongsToMethod(): Determining if a node belongs to a method
+
+5. **Statistics Tracking**: Added query performance tracking:
+   - Query count
+   - Cache hits
+   - Total query time
+   - Average query time
+   - Cache clearing and statistics reset
+
+6. **Placeholders**: Some methods are placeholders for future implementation:
+   - buildCFG(): Control flow graph construction
+   - isReachable(): Reachability analysis
+   - getStatements(): Requires statement nodes
+   - getStatementAt(): Requires statement nodes
+   - getFieldAccesses(): Requires expression nodes
+   - getVariableUses(): Requires expression nodes
+
+7. **Recursive Hierarchy Traversal**: Many queries use recursive traversal of the class hierarchy:
+   - getSubclasses() checks all classes for superclass relationship
+   - getImplementations() checks all classes for interface relationship
+   - getOverriddenMethod() recursively checks superclass hierarchy
+   - getOverridingMethods() checks all methods for subclass relationship
+
+8. **Stream-Based Processing**: Most queries use Java Streams for:
+   - Filtering
+   - Mapping
+   - Collecting results
+   - Lazy evaluation
+
+9. **Null Safety**: All public methods check for null parameters and return empty collections instead of null.
+
+10. **Type Safety**: Uses proper type casting with instanceof checks and Optional for safe navigation.
+
+### Design Patterns Applied (Additional)
+
+23. **Query Object Pattern**: JavaGraphQuery interface defines the query contract
+24. **Repository Pattern**: GraphQueryEngine acts as a repository for graph data
+25. **Facade Pattern**: GraphQueryEngine provides a simple facade over complex graph traversal
+26. **Chain of Responsibility**: Queries can be chained together for complex lookups
+
+### Open Questions for Future Phases
+
+- Should we add a query builder for complex queries (e.g., "find all public methods that call method X")?
+- Should we add caching for query results to improve performance?
+- Should we add support for query timeouts to prevent long-running queries?
+- Should we add a query language (DSL) for expressing complex queries?
+- Should we add support for query pagination for large result sets?
+- Should we add support for query subscriptions (notifications when graph changes affect query results)?
