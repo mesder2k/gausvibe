@@ -1,0 +1,647 @@
+name: gausvibe:query
+id: gausvibe-query
+description: Execute queries on a Java code graph for LLM code understanding
+version: 1.0.0
+author: Magnus Find
+license: MIT
+
+# Tool type - determines how Vibe executes this tool
+type: command
+
+# Execution configuration
+executable: execute.py
+working_directory: .
+
+# Parameters
+definition:
+  type: object
+  required:
+    - graph
+    - query
+  properties:
+    graph:
+      type: string
+      description: Path to graph JSON file
+      format: path
+      examples:
+        - "./graph.json"
+        - "/tmp/my-project-graph.json"
+        - "cache://project-graph.json"
+    query:
+      type: string
+      description: Query to execute (natural language or structured)
+      examples:
+        - "find class com.example.Calculator"
+        - "methods in Calculator"
+        - "who calls add()"
+        - "subclasses of Animal"
+        - "findClassByQualifiedName(qn=\"com.example.Calculator\")"
+    format:
+      type: string
+      description: Output format
+      enum:
+        - json
+        - text
+        - summary
+      default: json
+      examples:
+        - json
+        - text
+        - summary
+    limit:
+      type: integer
+      description: Maximum results to return
+      minimum: 1
+      maximum: 1000
+      default: 100
+      examples:
+        - 10
+        - 50
+        - 100
+    include_source:
+      type: boolean
+      description: Include source code snippets in results
+      default: false
+      examples:
+        - true
+        - false
+    timeout:
+      type: integer
+      description: Query timeout in seconds
+      minimum: 1
+      maximum: 60
+      default: 30
+      examples:
+        - 10
+        - 30
+
+# Return schema
+returns:
+  type: object
+  required:
+    - query
+    - results
+    - count
+  properties:
+    query:
+      type: string
+      description: The query that was executed
+      examples:
+        - "who calls Calculator.add()"
+    results:
+      type: array
+      description: Query results
+      items:
+        oneOf:
+          - $ref: '#/definitions/ClassResult'
+          - $ref: '#/definitions/MethodResult'
+          - $ref: '#/definitions/FieldResult'
+          - $ref: '#/definitions/VariableResult'
+          - $ref: '#/definitions/CallResult'
+          - $ref: '#/definitions/InheritanceResult'
+          - $ref: '#/definitions/GenericResult'
+    count:
+      type: integer
+      description: Number of results returned
+      minimum: 0
+      examples:
+        - 0
+        - 1
+        - 10
+    total:
+      type: integer
+      description: Total number of results (may exceed limit)
+      minimum: 0
+    queryTimeMs:
+      type: integer
+      description: Time taken to execute query in milliseconds
+      minimum: 0
+    warnings:
+      type: array
+      description: Warning messages
+      items:
+        type: string
+    truncated:
+      type: boolean
+      description: Whether results were truncated due to limit
+      default: false
+
+# Result definitions
+definitions:
+  ClassResult:
+    type: object
+    required:
+      - type
+      - class
+    properties:
+      type:
+        type: string
+        enum:
+          - CLASS
+      class:
+        type: object
+        required:
+          - id
+          - name
+          - qualifiedName
+        properties:
+          id:
+            type: string
+            examples:
+              - "cls:com/example/Calculator"
+          name:
+            type: string
+            examples:
+              - "Calculator"
+          qualifiedName:
+            type: string
+            examples:
+              - "com.example.Calculator"
+          file:
+            type: string
+            examples:
+              - "Calculator.java"
+          startPosition:
+            $ref: '#/definitions/Position'
+          endPosition:
+            $ref: '#/definitions/Position'
+          modifiers:
+            type: array
+            items:
+              type: string
+            examples:
+              - ["public", "final"]
+          superclass:
+            type: string
+            examples:
+              - "java.lang.Object"
+          interfaces:
+            type: array
+            items:
+              type: string
+          isInterface:
+            type: boolean
+          isEnum:
+            type: boolean
+          isAbstract:
+            type: boolean
+          methodCount:
+            type: integer
+          fieldCount:
+            type: integer
+
+  MethodResult:
+    type: object
+    required:
+      - type
+      - method
+    properties:
+      type:
+        type: string
+        enum:
+          - METHOD
+      method:
+        type: object
+        required:
+          - id
+          - name
+          - qualifiedName
+          - signature
+        properties:
+          id:
+            type: string
+            examples:
+              - "mth:com/example/Calculator#add(int,int)"
+          name:
+            type: string
+            examples:
+              - "add"
+          qualifiedName:
+            type: string
+            examples:
+              - "com.example.Calculator.add"
+          signature:
+            type: string
+            examples:
+              - "add(int,int)"
+              - "main([Ljava/lang/String;)"
+          file:
+            type: string
+          startPosition:
+            $ref: '#/definitions/Position'
+          endPosition:
+            $ref: '#/definitions/Position'
+          returnType:
+            type: string
+            examples:
+              - "int"
+              - "void"
+              - "java.lang.String"
+          modifiers:
+            type: array
+            items:
+              type: string
+          isConstructor:
+            type: boolean
+          isStatic:
+            type: boolean
+          isAbstract:
+            type: boolean
+          parameterCount:
+            type: integer
+          thrownExceptions:
+            type: array
+            items:
+              type: string
+          belongingClass:
+            type: string
+            examples:
+              - "cls:com/example/Calculator"
+
+  FieldResult:
+    type: object
+    required:
+      - type
+      - field
+    properties:
+      type:
+        type: string
+        enum:
+          - FIELD
+      field:
+        type: object
+        required:
+          - id
+          - name
+          - qualifiedName
+          - type
+        properties:
+          id:
+            type: string
+            examples:
+              - "fld:com/example/Calculator#count"
+          name:
+            type: string
+            examples:
+              - "count"
+          qualifiedName:
+            type: string
+            examples:
+              - "com.example.Calculator.count"
+          type:
+            type: string
+            examples:
+              - "int"
+              - "java.lang.String"
+          file:
+            type: string
+          startPosition:
+            $ref: '#/definitions/Position'
+          endPosition:
+            $ref: '#/definitions/Position'
+          modifiers:
+            type: array
+            items:
+              type: string
+          isStatic:
+            type: boolean
+          isFinal:
+            type: boolean
+          belongingClass:
+            type: string
+
+  VariableResult:
+    type: object
+    required:
+      - type
+      - variable
+    properties:
+      type:
+        type: string
+        enum:
+          - VARIABLE
+      variable:
+        type: object
+        required:
+          - id
+          - name
+          - type
+        properties:
+          id:
+            type: string
+            examples:
+              - "var:Calculator.java:add:5:10:total"
+          name:
+            type: string
+            examples:
+              - "total"
+          type:
+            type: string
+            examples:
+              - "int"
+          file:
+            type: string
+          startPosition:
+            $ref: '#/definitions/Position'
+          endPosition:
+            $ref: '#/definitions/Position'
+          scopeMethod:
+            type: string
+            examples:
+              - "mth:com/example/Calculator#add(int,int)"
+          isFinal:
+            type: boolean
+
+  CallResult:
+    type: object
+    required:
+      - type
+      - caller
+      - callee
+    properties:
+      type:
+        type: string
+        enum:
+          - CALL
+      caller:
+        type: object
+        required:
+          - id
+          - name
+          - file
+          - line
+        properties:
+          id:
+            type: string
+            examples:
+              - "mth:com/example/Main#main([Ljava/lang/String;)"
+          name:
+            type: string
+            examples:
+              - "main"
+          qualifiedName:
+            type: string
+          file:
+            type: string
+          line:
+            type: integer
+          column:
+            type: integer
+      callee:
+        type: object
+        required:
+          - id
+          - name
+        properties:
+          id:
+            type: string
+            examples:
+              - "mth:com/example/Calculator#add(int,int)"
+          name:
+            type: string
+            examples:
+              - "add"
+          qualifiedName:
+            type: string
+          signature:
+            type: string
+      callType:
+        type: string
+        enum:
+          - DIRECT
+          - INDIRECT
+          - CONSTRUCTOR
+          - STATIC
+          - SUPER
+      arguments:
+        type: array
+        items:
+          type: object
+          properties:
+            value:
+              type: string
+            type:
+              type: string
+
+  InheritanceResult:
+    type: object
+    required:
+      - type
+      - parent
+      - child
+    properties:
+      type:
+        type: string
+        enum:
+          - INHERITANCE
+      relationship:
+        type: string
+        enum:
+          - INHERITS
+          - IMPLEMENTS
+          - EXTENDS
+      parent:
+        type: object
+        required:
+          - id
+          - name
+        properties:
+          id:
+            type: string
+          name:
+            type: string
+          qualifiedName:
+            type: string
+      child:
+        type: object
+        required:
+          - id
+          - name
+        properties:
+          id:
+            type: string
+          name:
+            type: string
+          qualifiedName:
+            type: string
+
+  GenericResult:
+    type: object
+    required:
+      - type
+      - data
+    properties:
+      type:
+        type: string
+        enum:
+          - GENERIC
+      data:
+        type: object
+        additionalProperties: true
+
+  Position:
+    type: object
+    required:
+      - line
+      - column
+    properties:
+      line:
+        type: integer
+        minimum: 1
+      column:
+        type: integer
+        minimum: 1
+
+# Examples
+examples:
+  - name: Find a class by qualified name
+    description: Locate a specific class
+    parameters:
+      graph: "./graph.json"
+      query: "find class com.example.Calculator"
+    returns:
+      query: "find class com.example.Calculator"
+      results:
+        - type: CLASS
+          class:
+            id: "cls:com/example/Calculator"
+            name: "Calculator"
+            qualifiedName: "com.example.Calculator"
+            file: "Calculator.java"
+            methodCount: 4
+            fieldCount: 0
+      count: 1
+      queryTimeMs: 5
+
+  - name: Get methods of a class
+    description: List all methods in a class
+    parameters:
+      graph: "./graph.json"
+      query: "methods in Calculator"
+    returns:
+      query: "methods in Calculator"
+      results:
+        - type: METHOD
+          method:
+            id: "mth:com/example/Calculator#add(int,int)"
+            name: "add"
+            signature: "add(int,int)"
+            returnType: "int"
+        - type: METHOD
+          method:
+            id: "mth:com/example/Calculator#subtract(int,int)"
+            name: "subtract"
+            signature: "subtract(int,int)"
+            returnType: "int"
+      count: 4
+
+  - name: Find callers of a method
+    description: Find all methods that call a specific method
+    parameters:
+      graph: "./graph.json"
+      query: "who calls add()"
+    returns:
+      query: "who calls add()"
+      results:
+        - type: CALL
+          caller:
+            id: "mth:com/example/Main#main([Ljava/lang/String;)"
+            name: "main"
+            file: "Main.java"
+            line: 42
+          callee:
+            id: "mth:com/example/Calculator#add(int,int)"
+            name: "add"
+          callType: DIRECT
+      count: 1
+
+  - name: Get subclasses
+    description: Find all classes that extend a given class
+    parameters:
+      graph: "./graph.json"
+      query: "subclasses of Animal"
+    returns:
+      query: "subclasses of Animal"
+      results:
+        - type: INHERITANCE
+          relationship: INHERITS
+          parent:
+            id: "cls:com/example/Animal"
+            name: "Animal"
+          child:
+            id: "cls:com/example/Dog"
+            name: "Dog"
+        - type: INHERITANCE
+          relationship: INHERITS
+          parent:
+            id: "cls:com/example/Animal"
+            name: "Animal"
+          child:
+            id: "cls:com/example/Cat"
+            name: "Cat"
+      count: 2
+
+  - name: Structured query
+    description: Use structured query format for precision
+    parameters:
+      graph: "./graph.json"
+      query: "findClassByQualifiedName(qn=\"com.example.Calculator\")"
+    returns:
+      query: "findClassByQualifiedName(qn=\"com.example.Calculator\")"
+      results:
+        - type: CLASS
+          class:
+            id: "cls:com/example/Calculator"
+      count: 1
+
+  - name: Text format output
+    description: Get human-readable text output
+    parameters:
+      graph: "./graph.json"
+      query: "all classes"
+      format: text
+    returns:
+      query: "all classes"
+      results:
+        - type: GENERIC
+          data:
+            text: "Calculator (com.example.Calculator)"
+        - type: GENERIC
+          data:
+            text: "Main (com.example.Main)"
+      count: 2
+      queryTimeMs: 8
+
+  - name: Summary format
+    description: Get concise summary
+    parameters:
+      graph: "./graph.json"
+      query: "who calls save()"
+      format: summary
+    returns:
+      query: "who calls save()"
+      results:
+        - type: GENERIC
+          data:
+            summary: "Found 3 callers of save(): UserService.createUser(), UserService.updateUser(), Main.init()"
+      count: 1
+
+# Tags
+tags:
+  - java
+  - code-analysis
+  - ast
+  - graph
+  - query
+  - search
+  - code-understanding
+
+# Dependencies
+dependencies:
+  - java: ">=17"
+
+# Timeout configuration
+timeout: 60  # 1 minute for complex queries
+
+# Memory requirements
+memory: 512MB

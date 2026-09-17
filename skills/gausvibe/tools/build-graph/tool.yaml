@@ -1,0 +1,366 @@
+name: gausvibe:build
+id: gausvibe-build
+description: Build a structured graph from Java source code for LLM code understanding
+version: 1.0.0
+author: Magnus Find
+license: MIT
+
+# Tool type - determines how Vibe executes this tool
+type: command
+
+# Execution configuration
+executable: execute.py
+working_directory: .
+
+# Parameters
+definition:
+  type: object
+  required:
+    - path
+  properties:
+    path:
+      type: string
+      description: Path to Java project root or source directory
+      format: path
+      examples:
+        - "."
+        - "./src/main/java"
+        - "/path/to/project"
+    output:
+      type: string
+      description: Output file path for graph JSON
+      format: path
+      examples:
+        - "./graph.json"
+        - "/tmp/my-project-graph.json"
+    include_test:
+      type: boolean
+      description: Include test source directories
+      default: true
+      examples:
+        - true
+        - false
+    exclude:
+      type: string
+      description: Glob pattern for files to exclude
+      examples:
+        - "**/Generated*.java"
+        - "**/target/**"
+        - "**/*.test.java"
+    parallel:
+      type: boolean
+      description: Parse files in parallel
+      default: true
+      examples:
+        - true
+        - false
+    verbose:
+      type: boolean
+      description: Enable verbose logging
+      default: false
+
+# Return schema
+returns:
+  type: object
+  properties:
+    graph:
+      type: object
+      description: The constructed code graph
+      properties:
+        version:
+          type: string
+          description: Graph format version
+          examples:
+            - "1.0"
+        metadata:
+          type: object
+          description: Graph metadata
+          properties:
+            createdAt:
+              type: string
+              format: date-time
+              description: When the graph was built
+            nodeCount:
+              type: integer
+              description: Number of nodes in the graph
+              minimum: 0
+            edgeCount:
+              type: integer
+              description: Number of edges in the graph
+              minimum: 0
+            fileCount:
+              type: integer
+              description: Number of Java files parsed
+              minimum: 0
+            parseTimeMs:
+              type: integer
+              description: Time taken to parse in milliseconds
+              minimum: 0
+        nodes:
+          type: array
+          description: Array of all nodes in the graph
+          items:
+            $ref: '#/definitions/Node'
+        edges:
+          type: array
+          description: Array of all edges in the graph
+          items:
+            $ref: '#/definitions/Edge'
+        indexes:
+          type: object
+          description: Indexes for fast lookup
+          additionalProperties: true
+    warnings:
+      type: array
+      description: Warning messages from parsing
+      items:
+        type: string
+    errors:
+      type: array
+      description: Error messages from parsing
+      items:
+        type: string
+
+# Definitions for reusable schemas
+definitions:
+  Node:
+    type: object
+    required:
+      - id
+      - type
+      - file
+    properties:
+      id:
+        type: string
+        description: Unique identifier for the node
+        examples:
+          - "cls:com/example/Calculator"
+          - "mth:com/example/Calculator#add(int,int)"
+          - "pkg:com/example"
+      type:
+        type: string
+        description: Type of the node
+        enum:
+          - PACKAGE
+          - CLASS
+          - INTERFACE
+          - ENUM
+          - METHOD
+          - CONSTRUCTOR
+          - FIELD
+          - PARAMETER
+          - VARIABLE
+          - BLOCK
+          - IF
+          - FOR
+          - WHILE
+          - DO
+          - SWITCH
+          - TRY
+          - CATCH_CLAUSE
+          - SYNCHRONIZED
+          - RETURN
+          - THROW
+          - BREAK
+          - CONTINUE
+          - LABELED
+          - EXPRESSION_STMT
+          - VARIABLE_DECL
+          - METHOD_CALL
+          - FIELD_ACCESS
+          - LITERAL
+          - BINARY_OP
+          - UNARY_OP
+          - TERNARY
+          - CAST
+          - INSTANCEOF
+          - NEW_CLASS
+          - NEW_ARRAY
+          - ARRAY_ACCESS
+          - LAMBDA
+          - METHOD_REF
+          - THIS
+          - SUPER
+          - PARENTHESES
+          - CLASS_EXPR
+      file:
+        type: string
+        description: Source file path
+        format: path
+        examples:
+          - "Calculator.java"
+          - "src/main/java/com/example/Calculator.java"
+      startPosition:
+        type: object
+        description: Start position in source file
+        properties:
+          line:
+            type: integer
+            minimum: 1
+          column:
+            type: integer
+            minimum: 1
+      endPosition:
+        type: object
+        description: End position in source file
+        properties:
+          line:
+            type: integer
+            minimum: 1
+          column:
+            type: integer
+            minimum: 1
+      properties:
+        type: object
+        description: Node-specific properties
+        additionalProperties: true
+
+  Edge:
+    type: object
+    required:
+      - fromId
+      - toId
+      - type
+    properties:
+      fromId:
+        type: string
+        description: Source node ID
+        examples:
+          - "mth:com/example/Calculator#add(int,int)"
+      toId:
+        type: string
+        description: Target node ID
+        examples:
+          - "mth:com/example/Main#main([Ljava/lang/String;)"
+      type:
+        type: string
+        description: Type of the edge
+        enum:
+          - CONTAINS
+          - BODY
+          - CONDITION
+          - THEN_BRANCH
+          - ELSE_BRANCH
+          - INIT
+          - UPDATE
+          - TRY_BLOCK
+          - CATCH
+          - FINALLY_BLOCK
+          - RETURN_VALUE
+          - THROW_VALUE
+          - TARGET
+          - LABEL
+          - DECLARES
+          - INITIALIZER
+          - RECEIVER
+          - METHOD_NAME
+          - FIELD_NAME
+          - CLASS_NAME
+          - ARGUMENT
+          - ARRAY
+          - INDEX
+          - LEFT_OPERAND
+          - RIGHT_OPERAND
+          - OPERATOR
+          - OPERAND
+          - TYPE
+          - TEST
+          - CONSEQUENT
+          - ALTERNATIVE
+          - HAS_METHOD
+          - HAS_FIELD
+          - HAS_PARAMETER
+          - RETURNS
+          - THROWS
+          - INHERITS
+          - IMPLEMENTS
+          - EXTENDS
+          - CALLS
+          - CALLS_CONSTRUCTOR
+          - ACCESSES
+          - CREATES
+          - REFERENCES_TYPE
+          - OVERRIDES
+          - READS
+          - WRITES
+          - IMPORTS
+          - ANNOTATED_WITH
+      properties:
+        type: object
+        description: Edge-specific properties
+        additionalProperties: true
+
+# Examples
+examples:
+  - name: Build graph for current directory
+    description: Parse all Java files in the current directory
+    parameters:
+      path: "."
+    returns:
+      graph:
+        version: "1.0"
+        metadata:
+          nodeCount: 42
+          edgeCount: 156
+          fileCount: 3
+          parseTimeMs: 1234
+        nodes: []
+        edges: []
+        indexes: {}
+      warnings: []
+
+  - name: Build graph with specific output
+    description: Parse Java files and save graph to specific location
+    parameters:
+      path: "./src"
+      output: "./graph.json"
+    returns:
+      graph:
+        version: "1.0"
+        metadata:
+          nodeCount: 87
+          edgeCount: 342
+          fileCount: 12
+          parseTimeMs: 5678
+
+  - name: Build excluding test files
+    description: Parse only main source files
+    parameters:
+      path: "."
+      include_test: false
+    returns:
+      graph:
+        metadata:
+          fileCount: 8
+
+  - name: Build with exclusion pattern
+    description: Skip generated files
+    parameters:
+      path: "."
+      exclude: "**/Generated*.java"
+    returns:
+      graph:
+        metadata:
+          fileCount: 10
+      warnings:
+        - "Skipped 2 files matching exclusion pattern"
+
+# Tags
+tags:
+  - java
+  - code-analysis
+  - ast
+  - graph
+  - build
+  - parse
+
+# Dependencies
+dependencies:
+  - java: ">=17"
+  - maven: ">=3.8"
+
+# Timeout configuration
+timeout: 300  # 5 minutes for large projects
+
+# Memory requirements
+memory: 2GB

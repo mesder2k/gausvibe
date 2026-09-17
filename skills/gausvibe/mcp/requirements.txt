@@ -1,0 +1,17 @@
+# MCP Server Requirements
+# Python 3.8+
+
+# MCP SDK
+mcp>=1.0.0
+
+# For better async support
+anyio>=4.0.0
+
+# For JSON handling
+orjson>=3.9.0
+
+# For file watching (optional, for live updates)
+watchfiles>=0.4.0
+
+# For better error handling
+pydantic>=2.0.0

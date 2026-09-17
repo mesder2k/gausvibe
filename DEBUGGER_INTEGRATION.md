@@ -1,6 +1,6 @@
 # Debugger Integration: Parallel Differential Debugging
 
-**Project:** JavaCodeGraph - Debugger Extension  
+**Project:** GausVibe - Debugger Extension  
 **Goal:** Run two program versions in parallel with a debugger, find first divergence point when method output invariant is violated  
 **Date:** 2026-09-17  
 **Status:** Design Document - Not Yet Implemented
@@ -127,7 +127,7 @@ public class DebugSession {
         this.versionId = versionId;
         this.commitHash = commitHash;
         this.sourceRoot = sourceRoot;
-        this.astGraph = buildGraphForCommit(commitHash);  // Your existing JavaCodeGraphBuilder
+        this.astGraph = buildGraphForCommit(commitHash);  // Your existing GausVibeBuilder
         this.vm = attachToJVM();
         this.linker = new DebugLinker(astGraph, vm);
         this.breakpoints = new BreakpointManager(this);
@@ -544,11 +544,11 @@ public class VariableDifference {
 ```
 1. SETUP
    ├─ Load Version A source (commit abc123)
-   ├─ Build AST Graph A using JavaCodeGraphBuilder
+   ├─ Build AST Graph A using GausVibeBuilder
    ├─ Launch/Attach JVM A
    │
    ├─ Load Version B source (commit def456)
-   ├─ Build AST Graph B using JavaCodeGraphBuilder
+   ├─ Build AST Graph B using GausVibeBuilder
    └─ Launch/Attach JVM B
 
 2. CONFIGURE
@@ -1149,7 +1149,7 @@ public class MinimalDebugSession {
 1. **Start with Phase 10** - Implement basic `DebugSession` and `DebugLinker`
 2. **Test with simple example** - Verify JDI connection and stepping works
 3. **Build incrementally** - Add parallel execution, then comparison, then invariants
-4. **Integrate with existing graph** - Extend your JavaCodeGraph to support runtime data
+4. **Integrate with existing graph** - Extend your GausVibe to support runtime data
 5. **Add LLM queries** - Make it accessible to Vibe
 
 This differential debugging approach will be **extremely powerful** for:

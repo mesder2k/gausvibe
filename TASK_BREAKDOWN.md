@@ -1,6 +1,6 @@
 # Java Project Graph Model: Complete Implementation Guide
 
-**Project:** JavaCodeGraph  
+**Project:** GausVibe  
 **Goal:** Structured graph of Java code for Vibe to understand without grep  
 **Version:** 1.0 - 2026-09-17  
 **Status:** Phase 9 complete - Testing with unit and integration tests implemented
@@ -51,11 +51,11 @@ public class Calculator {
 ## 📁 PROJECT STRUCTURE
 
 ```
-java-code-graph/
+gausvibe/
 ├── pom.xml
 ├── README.md
 └── src/
-    ├── main/java/com/javacodegraph/
+    ├── main/java/dk/gausdalfind/
     │   ├── Main.java
     │   ├── model/
     │   │   ├── Node.java, Position.java, Edge.java, EdgeTypes.java
@@ -78,7 +78,7 @@ java-code-graph/
     │   │   ├── SymbolTable.java
     │   │   └── SymbolResolver.java
     │   ├── graph/
-    │   │   └── JavaCodeGraphBuilder.java
+    │   │   └── GausVibeBuilder.java
     │   ├── queries/
     │   │   ├── JavaGraphQuery.java
     │   │   └── GraphQueryEngine.java
@@ -94,8 +94,8 @@ java-code-graph/
 ```xml
 <project>
   <modelVersion>4.0.0</modelVersion>
-  <groupId>com.javacodegraph</groupId>
-  <artifactId>java-code-graph</artifactId>
+  <groupId>dk.gausdalfind</groupId>
+  <artifactId>gausvibe</artifactId>
   <version>1.0.0</version>
   <properties>
     <maven.compiler.source>17</maven.compiler.source>
@@ -315,7 +315,7 @@ java-code-graph/
 - [x] Handle inheritance - INHERITS, IMPLEMENTS, EXTENDS edge creation and override detection
 
 **Phase 4: Construction**
-- [x] JavaCodeGraphBuilder - Main entry point with multi-phase build process
+- [x] GausVibeBuilder - Main entry point with multi-phase build process
 - [x] Parse all files - File collection and individual file parsing
 - [x] Resolve symbols - Integration with SymbolResolver
 - [x] Add derived edges - Placeholder for future derived edge creation
@@ -601,9 +601,9 @@ public class SymbolTable {
 }
 ```
 
-### 10. JavaCodeGraphBuilder
+### 10. GausVibeBuilder
 ```java
-public class JavaCodeGraphBuilder {
+public class GausVibeBuilder {
     private final Path projectRoot;
     private final Graph graph = new Graph();
     
@@ -942,7 +942,7 @@ public void validateGraph(Graph graph) {
 
 ### Phase 4 Implementation Notes
 
-1. **Builder Pattern**: Implemented JavaCodeGraphBuilder using a builder pattern with a clear multi-phase process:
+1. **Builder Pattern**: Implemented GausVibeBuilder using a builder pattern with a clear multi-phase process:
    - Setup JavaParser
    - Collect Java files
    - Parse each file
@@ -994,8 +994,8 @@ public void validateGraph(Graph graph) {
 
 ### Design Patterns Applied (Additional)
 
-15. **Builder Pattern**: JavaCodeGraphBuilder builds the graph step by step
-16. **Facade Pattern**: JavaCodeGraphBuilder acts as a facade for the complex graph construction process
+15. **Builder Pattern**: GausVibeBuilder builds the graph step by step
+16. **Facade Pattern**: GausVibeBuilder acts as a facade for the complex graph construction process
 17. **Template Method Pattern**: The build() method defines the overall algorithm structure
 18. **Strategy Pattern**: Different processing strategies for different node types
 
