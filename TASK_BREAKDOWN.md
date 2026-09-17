@@ -3,7 +3,7 @@
 **Project:** JavaCodeGraph  
 **Goal:** Structured graph of Java code for Vibe to understand without grep  
 **Version:** 1.0 - 2026-09-17  
-**Status:** Phase 4 complete - Construction infrastructure (JavaCodeGraphBuilder with multi-phase build) implemented
+**Status:** Phase 5 complete - Serialization infrastructure (JsonSerializer with JSON format) implemented
 
 ---
 
@@ -320,9 +320,9 @@ java-code-graph/
 - [x] Add derived edges - Placeholder for future derived edge creation
 
 **Phase 5: Serialization**
-- [ ] JsonSerializer
-- [ ] Serialize/deserialize
-- [ ] Round-trip test
+- [x] JsonSerializer - JSON serialization with Gson
+- [x] Serialize/deserialize - Full graph serialization with metadata
+- [x] Round-trip test - Graph equality checking for round-trip validation
 
 **Phase 6: Query API**
 - [ ] JavaGraphQuery interface
@@ -764,6 +764,7 @@ public void validateGraph(Graph graph) {
 - [x] Phase 2: Parsing
 - [x] Phase 3: Resolution
 - [x] Phase 4: Construction
+- [x] Phase 5: Serialization
 - [ ] Phase 4: Construction
 - [ ] Phase 5: Serialization
 - [ ] Phase 6: Query API
@@ -990,3 +991,70 @@ public void validateGraph(Graph graph) {
 - How to handle Java source files with encoding issues?
 - Should we add a progress callback for long-running builds?
 - How to handle syntax errors in a more graceful way (e.g., partial parsing)?
+
+### Phase 5 Implementation Notes
+
+1. **JSON Structure**: Designed a clean JSON structure with:
+   - Version field for future compatibility
+   - Metadata (createdAt, nodeCount, edgeCount)
+   - Nodes array with full node data
+   - Edges array with full edge data
+
+2. **Gson Configuration**: Used GsonBuilder with custom settings:
+   - Pretty printing for human readability
+   - HTML escaping disabled
+   - Complex map key serialization enabled
+   - Null serialization enabled
+   - Custom type adapters for Position and Path
+
+3. **Type Adapters**: Created custom type adapters:
+   - PositionTypeAdapter: Serializes Position as {line, column} object
+   - PathTypeAdapter: Serializes Path as string
+   - NodeTypeHierarchyAdapter: Handles Node polymorphism (partial - full handling in NodeWrapper)
+
+4. **Wrapper Pattern**: Used wrapper classes to handle complex serialization:
+   - GraphWrapper: Wraps the entire graph with metadata
+   - NodeWrapper: Handles different node types and their properties
+   - EdgeWrapper: Handles edge serialization
+   - Metadata: Contains graph statistics
+
+5. **Property Handling**: NodeWrapper extracts properties from DeclarationNode subclasses:
+   - For ClassNode: modifiers, superclass, interfaces, isInterface, isEnum
+   - For MethodNode: signature, returnType, modifiers, isConstructor, isStatic, thrownExceptions
+   - For FieldNode: type, modifiers, isStatic, isFinal
+   - For ParameterNode: type, position, belongingMethod
+   - For VariableNode: type, scopeMethod, isFinal
+
+6. **Deserialization**: NodeWrapper.toNode() recreates appropriate node types based on the type field, extracting properties from the properties map.
+
+7. **Round-trip Testing**: Implemented testRoundTrip() method that:
+   - Serializes a graph to JSON
+   - Deserializes back to a graph
+   - Compares the two graphs for equality
+   - Checks node count, edge count, node IDs, edge connections
+
+8. **SimpleNode**: Created a SimpleNode implementation for handling non-declaration nodes during deserialization, ensuring all node types can be reconstructed.
+
+9. **Multiple Serialization Targets**: Support for serializing to:
+   - String (serialize method)
+   - File (serialize with Path)
+   - Writer (serialize with Writer)
+   - And corresponding deserialization methods
+
+10. **Error Handling**: Added null checks and proper exception handling for all public methods.
+
+### Design Patterns Applied (Additional)
+
+19. **Adapter Pattern**: Type adapters for Position, Path, and Node
+20. **Wrapper Pattern**: GraphWrapper, NodeWrapper, EdgeWrapper for complex serialization
+21. **Composite Pattern**: JSON structure mirrors the graph structure
+22. **Memento Pattern**: Serialization captures the complete state of the graph
+
+### Open Questions for Future Phases
+
+- Should we add binary serialization for better performance?
+- Should we add compression for large graphs?
+- Should we add incremental serialization (only serialize changes)?
+- How to handle version migration for future schema changes?
+- Should we add support for other serialization formats (XML, Protocol Buffers)?
+- Should we add pretty-printing options (e.g., compact vs. formatted)?
