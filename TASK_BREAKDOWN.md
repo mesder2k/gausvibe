@@ -787,6 +787,7 @@ public void validateGraph(Graph graph) {
 - [x] Phase 7: Vibe Integration
 - [x] Phase 8: Optimization
 - [x] Phase 9: Testing
+- [ ] Phase 10: Self-Hosting MVP
 
 ---
 
@@ -1306,5 +1307,24 @@ public void validateGraph(Graph graph) {
    - Should we add mutation testing?
    - How to test parallel builder for race conditions?
    - How to test incremental builder for change detection accuracy?
+
+### Phase 10 Implementation Notes (Self-Hosting MVP)
+
+Phase 10 focuses on implementing self-hosting capability, allowing GausVibe to modify its own codebase.
+
+**Key Components:**
+1. **ASTEditor** - Core mutation interface with operations for add/remove/replace
+2. **Operation DSL** - JSON-serializable operations (ADD_METHOD, REMOVE_METHOD, etc.)
+3. **ChangeTracker** - Tracks all modifications for serialization
+4. **EditCommand** - CLI integration for edit operations
+5. **edit-graph tool** - Vibe tool for AST-based editing
+
+**Progress:**
+- ✅ ASTEditor with all primitive operations
+- ✅ Operation data classes and builders
+- ✅ EditCommand CLI integration
+- ✅ edit-graph Vibe tool (tool.yaml + execute.py)
+- ⏳ AST → source serialization (pending)
+- ⏳ Round-trip testing (pending)
 
 ### Open Questions for Future Phases

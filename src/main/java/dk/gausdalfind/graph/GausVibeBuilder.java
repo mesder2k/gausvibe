@@ -8,6 +8,7 @@ import dk.gausdalfind.parser.*;
 import dk.gausdalfind.symbols.*;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
@@ -34,6 +35,11 @@ public class GausVibeBuilder {
     private final Graph graph;
     private final SymbolTable symbolTable;
     
+    // Configuration
+    private boolean includeTestSources = true;
+    private String excludePattern;
+    private boolean parallel = true;
+    
     // Statistics
     private int filesParsed = 0;
     private int filesFailed = 0;
@@ -52,6 +58,48 @@ public class GausVibeBuilder {
         this.projectRoot = projectRoot;
         this.graph = new Graph();
         this.symbolTable = new SymbolTable();
+    }
+    
+    /**
+     * Sets whether to include test source directories.
+     */
+    public void setIncludeTestSources(boolean includeTestSources) {
+        this.includeTestSources = includeTestSources;
+    }
+    
+    /**
+     * Sets the glob pattern for files to exclude.
+     */
+    public void setExcludePattern(String excludePattern) {
+        this.excludePattern = excludePattern;
+    }
+    
+    /**
+     * Sets whether to parse files in parallel.
+     */
+    public void setParallel(boolean parallel) {
+        this.parallel = parallel;
+    }
+    
+    /**
+     * Returns whether test sources are included.
+     */
+    public boolean isIncludeTestSources() {
+        return includeTestSources;
+    }
+    
+    /**
+     * Returns the exclude pattern.
+     */
+    public String getExcludePattern() {
+        return excludePattern;
+    }
+    
+    /**
+     * Returns whether parallel parsing is enabled.
+     */
+    public boolean isParallel() {
+        return parallel;
     }
     
     /**
@@ -100,16 +148,69 @@ public class GausVibeBuilder {
     private List<Path> collectJavaFiles() throws IOException {
         List<Path> files = new ArrayList<>();
         
-        // Try standard Maven directories first
-        List<Path> standardFiles = JavaFileCollector.collectFromStandardDirectories(projectRoot);
-        if (!standardFiles.isEmpty()) {
-            files.addAll(standardFiles);
+        if (includeTestSources) {
+            // Try standard Maven directories first (includes test)
+            List<Path> standardFiles = JavaFileCollector.collectFromStandardDirectories(projectRoot);
+            if (!standardFiles.isEmpty()) {
+                files.addAll(filterByExcludePattern(standardFiles));
+            } else {
+                // Fall back to collecting from project root
+                files.addAll(filterByExcludePattern(JavaFileCollector.collect(projectRoot)));
+            }
         } else {
-            // Fall back to collecting from project root
-            files.addAll(JavaFileCollector.collect(projectRoot));
+            // Only collect from main source directory
+            Path mainSrc = projectRoot.resolve("src/main/java");
+            if (Files.isDirectory(mainSrc)) {
+                files.addAll(filterByExcludePattern(JavaFileCollector.collect(mainSrc)));
+            } else {
+                // Fall back to collecting from project root, filter out test directories
+                files.addAll(filterByExcludePattern(JavaFileCollector.collect(projectRoot)));
+                files.removeIf(path -> path.toString().contains("/test/") || path.toString().contains("\\test\\"));
+            }
         }
         
         return files;
+    }
+    
+    /**
+     * Filters files based on the exclude pattern.
+     */
+    private List<Path> filterByExcludePattern(List<Path> files) {
+        if (excludePattern == null || excludePattern.isBlank()) {
+            return files;
+        }
+        
+        List<Path> filtered = new ArrayList<>();
+        for (Path file : files) {
+            if (!matchesExcludePattern(file)) {
+                filtered.add(file);
+            }
+        }
+        return filtered;
+    }
+    
+    /**
+     * Checks if a file path matches the exclude pattern.
+     */
+    private boolean matchesExcludePattern(Path file) {
+        if (excludePattern == null || excludePattern.isBlank()) {
+            return false;
+        }
+        
+        String pathStr = file.toString();
+        // Simple glob pattern matching (supports ** for recursive)
+        if (excludePattern.contains("**")) {
+            // Recursive wildcard
+            String pattern = excludePattern.replace("**", "");
+            return pathStr.contains(pattern);
+        } else if (excludePattern.contains("*")) {
+            // Single wildcard
+            String pattern = excludePattern.replace("*", "");
+            return pathStr.contains(pattern);
+        } else {
+            // Exact match or substring
+            return pathStr.contains(excludePattern);
+        }
     }
     
     // ==================== File Parsing ====================

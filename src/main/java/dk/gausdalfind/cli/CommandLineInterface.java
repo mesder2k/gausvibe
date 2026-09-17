@@ -1,5 +1,6 @@
 package dk.gausdalfind.cli;
 
+import dk.gausdalfind.editing.*;
 import dk.gausdalfind.graph.GausVibeBuilder;
 import dk.gausdalfind.model.*;
 import dk.gausdalfind.model.declaration.*;
@@ -68,6 +69,9 @@ public class CommandLineInterface {
                 case "query":
                     runQueryCommand(arguments.subList(1, arguments.size()));
                     break;
+                case "edit":
+                    runEditCommand(arguments.subList(1, arguments.size()));
+                    break;
                 case "interactive":
                 case "shell":
                     startInteractiveMode();
@@ -101,12 +105,17 @@ public class CommandLineInterface {
         String projectPath = null;
         String outputPath = null;
         boolean serialize = false;
+        boolean includeTest = true;
+        String excludePattern = null;
+        boolean parallel = true;
+        boolean verbose = false;
         
         for (int i = 0; i < args.size(); i++) {
             String arg = args.get(i);
             switch (arg) {
                 case "--project":
                 case "-p":
+                case "--path":
                     projectPath = args.get(++i);
                     break;
                 case "--output":
@@ -117,6 +126,25 @@ public class CommandLineInterface {
                 case "--serialize":
                 case "-s":
                     serialize = true;
+                    break;
+                case "--include-test":
+                    includeTest = true;
+                    break;
+                case "--exclude-test":
+                    includeTest = false;
+                    break;
+                case "--exclude":
+                    excludePattern = args.get(++i);
+                    break;
+                case "--parallel":
+                    parallel = true;
+                    break;
+                case "--no-parallel":
+                    parallel = false;
+                    break;
+                case "--verbose":
+                case "-v":
+                    verbose = true;
                     break;
                 default:
                     if (arg.startsWith("-")) {
@@ -135,10 +163,23 @@ public class CommandLineInterface {
         
         Path projectRoot = Path.of(projectPath).toAbsolutePath().normalize();
         
-        System.out.println("Building graph for project: " + projectRoot);
+        if (verbose) {
+            System.out.println("Building graph for project: " + projectRoot);
+            System.out.println("Include test: " + includeTest);
+            if (excludePattern != null) {
+                System.out.println("Exclude pattern: " + excludePattern);
+            }
+            System.out.println("Parallel: " + parallel);
+        }
+        
         long startTime = System.currentTimeMillis();
         
         GausVibeBuilder builder = new GausVibeBuilder(projectRoot);
+        builder.setIncludeTestSources(includeTest);
+        if (excludePattern != null) {
+            builder.setExcludePattern(excludePattern);
+        }
+        builder.setParallel(parallel);
         graph = builder.build();
         
         long buildTime = System.currentTimeMillis() - startTime;
@@ -159,6 +200,78 @@ public class CommandLineInterface {
             this.graphFile = Path.of(outputPath);
         }
         this.projectRoot = projectRoot;
+    }
+    
+    /**
+     * Runs the edit command.
+     */
+    private void runEditCommand(List<String> args) throws IOException {
+        String graphPath = null;
+        String operationsJson = null;
+        boolean dryRun = false;
+        String outputFormat = "json";
+        boolean verbose = false;
+        
+        for (int i = 0; i < args.size(); i++) {
+            String arg = args.get(i);
+            switch (arg) {
+                case "--graph":
+                case "-g":
+                    graphPath = args.get(++i);
+                    break;
+                case "--operations":
+                case "-o":
+                    operationsJson = args.get(++i);
+                    break;
+                case "--dry-run":
+                    dryRun = true;
+                    break;
+                case "--output":
+                    outputFormat = args.get(++i);
+                    break;
+                case "--verbose":
+                case "-v":
+                    verbose = true;
+                    break;
+                default:
+                    if (arg.startsWith("-")) {
+                        System.err.println("Unknown option: " + arg);
+                        printEditHelp();
+                        System.exit(1);
+                    }
+            }
+        }
+        
+        if (operationsJson == null) {
+            System.err.println("No operations specified");
+            printEditHelp();
+            System.exit(1);
+        }
+        
+        // Load graph
+        if (graph == null) {
+            if (graphPath != null) {
+                loadGraph(graphPath);
+            } else if (this.graphFile != null) {
+                loadGraph(this.graphFile);
+            } else {
+                System.err.println("No graph loaded and no graph file specified");
+                System.err.println("Use 'build' command first or specify --graph option");
+                System.exit(1);
+            }
+        }
+        
+        // Parse operations and execute
+        try {
+            List<Operation> operations = EditCommand.parseOperations(operationsJson);
+            EditCommand editCmd = new EditCommand(graph, graphFile, dryRun, outputFormat, verbose);
+            String result = editCmd.execute(operations);
+            System.out.println(result);
+        } catch (Exception e) {
+            System.err.println("Error executing edit: " + e.getMessage());
+            e.printStackTrace();
+            System.exit(1);
+        }
     }
     
     /**
@@ -517,12 +630,14 @@ public class CommandLineInterface {
         System.out.println("Commands:");
         System.out.println("  build [options]   - Build graph from project");
         System.out.println("  query [options]   - Execute query on graph");
+        System.out.println("  edit [options]    - Edit graph with AST operations");
         System.out.println("  interactive       - Start interactive shell");
         System.out.println("  help             - Show this help");
         System.out.println("  version          - Show version");
         System.out.println();
         System.out.println("Type 'java -jar gausvibe.jar build --help' for build options");
         System.out.println("Type 'java -jar gausvibe.jar query --help' for query options");
+        System.out.println("Type 'java -jar gausvibe.jar edit --help' for edit options");
     }
     
     private void printBuildHelp() {
@@ -557,6 +672,29 @@ public class CommandLineInterface {
         System.out.println("  search:nodes:TYPE      - Search nodes by type");
         System.out.println("  search:edges:TYPE      - Search edges by type");
         System.out.println("  stats                  - Show graph statistics");
+    }
+    
+    private void printEditHelp() {
+        System.out.println("Usage: edit [options]");
+        System.out.println();
+        System.out.println("Options:");
+        System.out.println("  --graph PATH, -g PATH     - Graph file to load");
+        System.out.println("  --operations OPERATIONS, -o OPERATIONS - JSON array of operations");
+        System.out.println("  --dry-run               - Preview changes without writing files");
+        System.out.println("  --output FORMAT         - Output format: json, diff, summary, text");
+        System.out.println("  --verbose, -v           - Enable detailed logging");
+        System.out.println();
+        System.out.println("Operation Types:");
+        System.out.println("  ADD_METHOD           - Add a new method to a class");
+        System.out.println("  REMOVE_METHOD        - Remove a method from a class");
+        System.out.println("  REPLACE_METHOD_BODY  - Replace the body of a method");
+        System.out.println("  ADD_FIELD            - Add a new field to a class");
+        System.out.println("  REMOVE_FIELD         - Remove a field from a class");
+        System.out.println("  ADD_IMPORT           - Add an import statement");
+        System.out.println("  REMOVE_IMPORT        - Remove an import statement");
+        System.out.println();
+        System.out.println("Example:");
+        System.out.println("  edit --graph graph.json --operations '[{"type": "ADD_METHOD", "target_class": "com.example.MyClass", "name": "newMethod", "return_type": "void"}]'");
     }
     
     private void printInteractiveHelp() {

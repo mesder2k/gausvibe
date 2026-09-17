@@ -1,0 +1,205 @@
+name: gausvibe:edit
+gausvibe-edit
+id: gausvibe-edit
+version: 1.0.0
+author: Magnus Find
+license: MIT
+
+type: command
+executable: execute.py
+working_directory: .
+
+definition:
+  type: object
+  required:
+    - graph
+    - operations
+  properties:
+    graph:
+      type: string
+      description: Path to graph JSON file
+      format: path
+      examples:
+        - "./graph.json"
+        - "/tmp/my-project-graph.json"
+        - "cache://project-graph.json"
+    operations:
+      type: string
+      description: JSON array of AST operations to apply
+      examples:
+        - "[{\"type\": \"ADD_METHOD\", \"target_class\": \"com.example.MyClass\", \"name\": \"newMethod\", \"return_type\": \"void\", \"body\": \"System.out.println(\\\"Hello\\\");\"}]"
+        - "[{\"type\": \"REMOVE_METHOD\", \"method\": \"com.example.MyClass.oldMethod\"}]"
+    dry_run:
+      type: boolean
+      description: Preview changes without writing files
+      default: false
+      examples:
+        - true
+        - false
+    output:
+      type: string
+      description: Output format
+      enum:
+        - json
+        - diff
+        - summary
+        - text
+      default: json
+      examples:
+        - json
+        - diff
+        - summary
+    verbose:
+      type: boolean
+      description: Enable detailed logging
+      default: false
+      examples:
+        - true
+        - false
+
+returns:
+  type: object
+  required:
+    - success
+    - appliedCount
+    - changes
+  properties:
+    success:
+      type: boolean
+      description: Whether all operations were applied successfully
+      examples:
+        - true
+        - false
+    appliedCount:
+      type: integer
+      description: Number of operations applied
+      minimum: 0
+      examples:
+        - 1
+        - 5
+    successCount:
+      type: integer
+      description: Number of successful operations
+      minimum: 0
+    failureCount:
+      type: integer
+      description: Number of failed operations
+      minimum: 0
+    changes:
+      type: object
+      description: Summary of changes made
+      properties:
+        addedNodes:
+          type: array
+          description: IDs of nodes that were added
+          items:
+            type: string
+        removedNodes:
+          type: array
+          description: IDs of nodes that were removed
+          items:
+            type: string
+        modifiedFiles:
+          type: array
+          description: Files that were modified
+          items:
+            type: string
+    results:
+      type: array
+      description: Detailed results for each operation
+      items:
+        type: object
+        properties:
+          success:
+            type: boolean
+          message:
+            type: string
+          nodeId:
+            type: string
+    warnings:
+      type: array
+      description: Warning messages
+      items:
+        type: string
+    errors:
+      type: array
+      description: Error messages
+      items:
+        type: string
+
+examples:
+  - name: Add a new method
+    description: Add a simple method to a class
+    parameters:
+      graph: "./graph.json"
+      operations: '[{"type": "ADD_METHOD", "target_class": "com.example.MyClass", "name": "getVersion", "return_type": "String", "modifiers": ["public", "static"], "body": "return \"1.0.0\";"}]'
+    returns:
+      success: true
+      appliedCount: 1
+      successCount: 1
+      failureCount: 0
+      changes:
+        addedNodes:
+          - "mth:com/example/MyClass#getVersion()"
+        removedNodes: []
+        modifiedFiles: []
+      results:
+        - success: true
+          message: "Operation completed successfully"
+          nodeId: "mth:com/example/MyClass#getVersion()"
+
+  - name: Remove a method
+    description: Remove an existing method from a class
+    parameters:
+      graph: "./graph.json"
+      operations: '[{"type": "REMOVE_METHOD", "method": "com.example.MyClass.oldMethod"}]'
+      output: summary
+    returns:
+      success: true
+      appliedCount: 1
+      changes:
+        addedNodes: []
+        removedNodes:
+          - "mth:com/example/MyClass#oldMethod()"
+        modifiedFiles: []
+
+  - name: Replace method body
+    description: Update the implementation of a method
+    parameters:
+      graph: "./graph.json"
+      operations: '[{"type": "REPLACE_METHOD_BODY", "method": "com.example.MyClass.existingMethod", "new_body": "System.out.println(\\\"Updated\\\");"}]'
+      output: diff
+    returns:
+      success: true
+      appliedCount: 1
+      changes:
+        addedNodes: []
+        removedNodes: []
+        modifiedFiles: []
+
+  - name: Multiple operations
+    description: Apply multiple edits in a single call
+    parameters:
+      graph: "./graph.json"
+      operations: '[{"type": "ADD_METHOD", "target_class": "com.example.MyClass", "name": "method1", "return_type": "void"}, {"type": "ADD_FIELD", "target_class": "com.example.MyClass", "name": "field1", "type": "String"}]'
+      output: json
+    returns:
+      success: true
+      appliedCount: 2
+      successCount: 2
+      failureCount: 0
+
+tags:
+  - java
+  - code-analysis
+  - ast
+  - graph
+  - edit
+  - modify
+  - code-generation
+
+dependencies:
+  - java: ">=17"
+
+timeout: 120
+memory: 1GB
