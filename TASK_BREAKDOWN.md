@@ -3,7 +3,7 @@
 **Project:** JavaCodeGraph  
 **Goal:** Structured graph of Java code for Vibe to understand without grep  
 **Version:** 1.0 - 2026-09-17  
-**Status:** Phase 1 complete - Core model (Node, Edge, Graph, Indexes, NodeIdGenerator, Declaration nodes) implemented
+**Status:** Phase 2 complete - Parsing infrastructure (JavaParserConfig, JavaFileCollector, VisitorContext, NodeFactory, EdgeFactory, DeclarationVisitor, StatementVisitor, ExpressionVisitor) implemented
 
 ---
 
@@ -295,14 +295,14 @@ java-code-graph/
 - [x] NodeIdGenerator
 
 **Phase 2: Parsing**
-- [ ] JavaParserConfig
-- [ ] JavaFileCollector
-- [ ] VisitorContext
-- [ ] NodeFactory
-- [ ] EdgeFactory
-- [ ] DeclarationVisitor
-- [ ] StatementVisitor
-- [ ] ExpressionVisitor
+- [x] JavaParserConfig - Configure JavaParser with symbol solving
+- [x] JavaFileCollector - Collect Java files from project directories
+- [x] VisitorContext - Context for AST traversal with scoping and symbol tracking
+- [x] NodeFactory - Create nodes from JavaParser AST nodes (Package, Class, Method, Field, Parameter, Variable)
+- [x] EdgeFactory - Create edges between nodes (structural, expression, semantic)
+- [x] DeclarationVisitor - Process package, class, method, field, parameter declarations
+- [x] StatementVisitor - Process block, if, for, while, try-catch, return, throw, etc.
+- [x] ExpressionVisitor - Process expressions (method calls, literals, binary ops, etc.)
 
 **Phase 3: Resolution**
 - [ ] SymbolTable
@@ -761,7 +761,7 @@ public void validateGraph(Graph graph) {
 
 - [x] Phase 0: Setup
 - [x] Phase 1: Core Model
-- [ ] Phase 2: Parsing
+- [x] Phase 2: Parsing
 - [ ] Phase 3: Resolution
 - [ ] Phase 4: Construction
 - [ ] Phase 5: Serialization
@@ -810,3 +810,51 @@ public void validateGraph(Graph graph) {
 - Should we add a visitor pattern for traversing the graph?
 - Consider adding a builder pattern for complex node construction in the parser phase
 - Should AST nodes (statements/expressions) also extend a common base class like we did with DeclarationNode?
+
+### Phase 2 Implementation Notes
+
+1. **Circular Dependencies**: Discovered circular dependencies between visitor classes (DeclarationVisitor <- StatementVisitor <- ExpressionVisitor <- DeclarationVisitor). Resolution: Use forward references and lazy initialization. The visitors pass Graph and VisitorContext to each other rather than holding direct references.
+
+2. **JavaParser API Complexity**: JavaParser's AST node types are extensive and nested. The visitor pattern helps manage this complexity by allowing each visitor to focus on specific node types.
+
+3. **AST Node Types**: JavaParser distinguishes between different categories of nodes:
+   - Declaration nodes (ClassOrInterfaceDeclaration, MethodDeclaration, FieldDeclaration, etc.)
+   - Statement nodes (BlockStmt, IfStmt, ForStmt, etc.)
+   - Expression nodes (MethodCallExpr, BinaryExpr, NameExpr, etc.)
+   - Type nodes (ClassOrInterfaceType, ReferenceType, etc.)
+   - Body nodes (ConstructorDeclaration, InitializerDeclaration, etc.)
+
+4. **Visitor Pattern**: Used JavaParser's VoidVisitorAdapter<T> as the base class for our visitors. The generic type T is used for the VisitorContext, allowing us to pass context through the visitor chain.
+
+5. **Context Management**: The VisitorContext class is crucial for tracking state during AST traversal:
+   - Current file, package, class, method
+   - Import statements
+   - Symbol table (local to current file)
+   - Scope stacks for nested blocks
+   - Type resolution utilities
+
+6. **NodeFactory Caching**: Implemented caching in NodeFactory to avoid creating duplicate nodes for the same AST element.
+
+7. **EdgeFactory Deduplication**: Implemented edge caching in EdgeFactory to avoid creating duplicate edges between the same nodes.
+
+8. **Constructor Handling**: Special handling needed for constructors in MethodNode (they have a different ID format and behavior).
+
+9. **Parameter Position Tracking**: Parameter nodes need to track their position within the method signature for proper ordering.
+
+10. **Nested Class Support**: Added handling for nested classes by using the outer class's qualified name with "$" separator.
+
+### Design Patterns Applied (Additional)
+
+6. **Visitor Pattern**: Used extensively for AST traversal (DeclarationVisitor, StatementVisitor, ExpressionVisitor)
+7. **Factory Pattern**: NodeFactory and EdgeFactory for creating nodes and edges
+8. **Strategy Pattern**: Different visitors implement different strategies for processing different node types
+9. **Composite Pattern**: AST itself is a composite structure, and our graph mirrors this
+10. **Memento Pattern**: VisitorContext acts as a memento, capturing the state of traversal
+
+### Open Questions for Future Phases
+
+- How to handle forward references (method A calls method B which is defined later)?
+- How to handle diamond inheritance and complex type hierarchies?
+- Should we create AST node classes for statements/expressions now, or wait until Phase 3?
+- How to handle generic type parameters properly?
+- How to handle anonymous inner classes?
