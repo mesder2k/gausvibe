@@ -3,7 +3,7 @@
 **Project:** JavaCodeGraph  
 **Goal:** Structured graph of Java code for Vibe to understand without grep  
 **Version:** 1.0 - 2026-09-17  
-**Status:** Phase 3 complete - Resolution infrastructure (SymbolTable, SymbolResolver with multi-pass resolution) implemented
+**Status:** Phase 4 complete - Construction infrastructure (JavaCodeGraphBuilder with multi-phase build) implemented
 
 ---
 
@@ -314,10 +314,10 @@ java-code-graph/
 - [x] Handle inheritance - INHERITS, IMPLEMENTS, EXTENDS edge creation and override detection
 
 **Phase 4: Construction**
-- [ ] JavaCodeGraphBuilder
-- [ ] Parse all files
-- [ ] Resolve symbols
-- [ ] Add derived edges
+- [x] JavaCodeGraphBuilder - Main entry point with multi-phase build process
+- [x] Parse all files - File collection and individual file parsing
+- [x] Resolve symbols - Integration with SymbolResolver
+- [x] Add derived edges - Placeholder for future derived edge creation
 
 **Phase 5: Serialization**
 - [ ] JsonSerializer
@@ -763,6 +763,7 @@ public void validateGraph(Graph graph) {
 - [x] Phase 1: Core Model
 - [x] Phase 2: Parsing
 - [x] Phase 3: Resolution
+- [x] Phase 4: Construction
 - [ ] Phase 4: Construction
 - [ ] Phase 5: Serialization
 - [ ] Phase 6: Query API
@@ -921,3 +922,71 @@ public void validateGraph(Graph graph) {
 - Should we add a "fuzzy" resolution mode for handling incomplete code?
 - How to handle static imports?
 - Should we add support for resolving annotations?
+
+### Phase 4 Implementation Notes
+
+1. **Builder Pattern**: Implemented JavaCodeGraphBuilder using a builder pattern with a clear multi-phase process:
+   - Setup JavaParser
+   - Collect Java files
+   - Parse each file
+   - Resolve symbols
+   - Add derived edges
+   - Validate graph
+
+2. **File Collection Strategy**: The builder tries standard Maven directories first (src/main/java, src/test/java), then falls back to collecting from the project root. This makes it work with both Maven and non-Maven projects.
+
+3. **Error Handling**: Each file is parsed independently, so errors in one file don't prevent others from being parsed. Statistics track both successful and failed parses.
+
+4. **Context Management**: During file parsing, the builder:
+   - Creates a new VisitorContext for each file
+   - Processes package declaration first
+   - Collects import statements
+   - Registers symbols in the symbol table as they're created
+
+5. **Type Declaration Processing**: Handles different type declaration types:
+   - ClassOrInterfaceDeclaration -> ClassNode
+   - EnumDeclaration -> ClassNode (with isEnum=true) with enum constants as FieldNodes
+   - AnnotationDeclaration -> TODO (skipped for now)
+
+6. **Class Member Processing**: For each class, processes:
+   - Method declarations (creates MethodNode, processes parameters and body)
+   - Field declarations (creates FieldNode for each variable)
+   - Nested class/interface declarations (recursive processing)
+   - Enum declarations (creates enum class with constants)
+
+7. **Method Body Processing**: For each method:
+   - Creates ParameterNode for each parameter
+   - Creates HAS_PARAMETER edges
+   - Uses StatementVisitor to process the method body
+
+8. **Enum Handling**: Special handling for enums:
+   - Created as ClassNode with isEnum=true
+   - Each enum constant is a FieldNode with static/final flags
+   - Enum constants can have arguments and class bodies
+
+9. **Derived Edges**: Placeholder for creating edges that can be inferred (RETURN_VALUE, THROW_VALUE, CALLS_CONSTRUCTOR, etc.) - will be fully implemented when expression nodes are added.
+
+10. **Graph Validation**: Built-in validation checks for:
+    - Nodes with null/blank IDs
+    - Edges with missing from/to nodes
+    - General graph integrity
+
+11. **Statistics Tracking**: Tracks files parsed, files failed, parse time, node count, edge count for monitoring and debugging.
+
+12. **BuildResult Pattern**: Added a BuildResult inner class to return both the graph and symbol table along with statistics.
+
+### Design Patterns Applied (Additional)
+
+15. **Builder Pattern**: JavaCodeGraphBuilder builds the graph step by step
+16. **Facade Pattern**: JavaCodeGraphBuilder acts as a facade for the complex graph construction process
+17. **Template Method Pattern**: The build() method defines the overall algorithm structure
+18. **Strategy Pattern**: Different processing strategies for different node types
+
+### Open Questions for Future Phases
+
+- Should we add support for incremental building (only reparse changed files)?
+- How to handle circular dependencies between files?
+- Should we add parallel parsing for better performance on large projects?
+- How to handle Java source files with encoding issues?
+- Should we add a progress callback for long-running builds?
+- How to handle syntax errors in a more graceful way (e.g., partial parsing)?
