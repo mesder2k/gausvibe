@@ -3,7 +3,7 @@
 **Project:** JavaCodeGraph  
 **Goal:** Structured graph of Java code for Vibe to understand without grep  
 **Version:** 1.0 - 2026-09-17  
-**Status:** Phase 0 complete - Maven project structure with dependencies created
+**Status:** Phase 1 complete - Core model (Node, Edge, Graph, Indexes, NodeIdGenerator, Declaration nodes) implemented
 
 ---
 
@@ -286,13 +286,13 @@ java-code-graph/
 - [x] Verify build (structure verified; Maven not available in environment)
 
 **Phase 1: Core Model**
-- [ ] Position record
-- [ ] Node interface
-- [ ] Edge class
-- [ ] EdgeTypes constants
-- [ ] All node classes
-- [ ] Graph + Indexes
-- [ ] NodeIdGenerator
+- [x] Position record
+- [x] Node interface
+- [x] Edge class
+- [x] EdgeTypes constants
+- [x] All node classes (DeclarationNode, PackageNode, ClassNode, MethodNode, FieldNode, ParameterNode, VariableNode)
+- [x] Graph + Indexes
+- [x] NodeIdGenerator
 
 **Phase 2: Parsing**
 - [ ] JavaParserConfig
@@ -760,7 +760,7 @@ public void validateGraph(Graph graph) {
 ## ✅ COMPLETION CHECKLIST
 
 - [x] Phase 0: Setup
-- [ ] Phase 1: Core Model
+- [x] Phase 1: Core Model
 - [ ] Phase 2: Parsing
 - [ ] Phase 3: Resolution
 - [ ] Phase 4: Construction
@@ -775,3 +775,38 @@ public void validateGraph(Graph graph) {
 **This document contains ALL information needed to implement the project.**
 
 **Start with Phase 0 and work through the checklist!**
+
+---
+
+## 📝 LESSONS LEARNED & DESIGN DECISIONS
+
+### Phase 1 Implementation Notes
+
+1. **DeclarationNode Hierarchy**: Created an abstract `DeclarationNode` base class for all declaration types (Package, Class, Method, Field, Parameter, Variable). This provides a common structure and avoids code duplication for shared properties like id, name, qualifiedName, file, and positions.
+
+2. **Type Naming Conflict**: Discovered that `getType()` method in the `Node` interface conflicts with field/method type getters in `FieldNode`, `ParameterNode`, and `VariableNode`. Resolution: Renamed the data type getters to `getDataType()` to avoid the naming collision while maintaining the `getType()` method for the node type.
+
+3. **Indexes Design**: Implemented comprehensive indexing with `ConcurrentHashMap` for thread-safe operations. Indexes include node indexes (by ID, type, file), class indexes (by FQN, by name), method indexes (by signature, by name), field indexes (by FQN, by name), package indexes (by name), and edge indexes (by type, by from node, by to node). This enables O(1) lookups for most common queries.
+
+4. **NodeIdGenerator**: Created a utility class for generating unique IDs following the patterns specified in the document. Added `NodeType` enum for all node types with their prefixes.
+
+5. **Immutability**: Used `Collections.unmodifiableMap()`, `Set.copyOf()`, and `List.copyOf()` extensively to ensure that returned collections cannot be modified externally.
+
+6. **Validation**: Added null/blank checks in constructors and setter methods to prevent invalid state.
+
+7. **Compilation Testing**: Without Maven available in the environment, tested compilation using direct `javac` commands. Had to comment out JavaParser-specific utility methods and ensure all imports were correct.
+
+### Design Patterns Applied
+
+1. **Factory Pattern**: `NodeIdGenerator` acts as a factory for generating unique IDs
+2. **Composite Pattern**: `Graph` contains `Node` and `Edge` objects with hierarchical relationships
+3. **Index/Repository Pattern**: `Indexes` provides efficient lookup and querying capabilities
+4. **Strategy Pattern**: Different node types implement their own behavior while sharing common interface
+5. **Immutable Objects**: Position (record), Edge, and most node properties are immutable
+
+### Open Questions for Future Phases
+
+- Should we use interfaces for different node categories (Declaration, Statement, Expression) instead of just Node?
+- Should we add a visitor pattern for traversing the graph?
+- Consider adding a builder pattern for complex node construction in the parser phase
+- Should AST nodes (statements/expressions) also extend a common base class like we did with DeclarationNode?
