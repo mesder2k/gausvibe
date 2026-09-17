@@ -3,7 +3,7 @@
 **Project:** JavaCodeGraph  
 **Goal:** Structured graph of Java code for Vibe to understand without grep  
 **Version:** 1.0 - 2026-09-17  
-**Status:** Phase 7 complete - Vibe Integration with CLI, Query DSL, and Query Parser implemented
+**Status:** Phase 8 complete - Optimization with CachingQueryEngine, ParallelGraphBuilder, and IncrementalGraphBuilder implemented
 
 ---
 
@@ -350,9 +350,10 @@ java-code-graph/
 - [ ] Final documentation
 
 **Phase 8: Optimization**
-- [ ] CachingQueryEngine
-- [ ] Parallel parsing
-- [ ] Incremental updates
+- [x] CachingQueryEngine - Query result caching with statistics tracking
+- [x] ParallelGraphBuilder - Parallel file parsing with configurable thread pool
+- [x] IncrementalGraphBuilder - Incremental updates with file modification tracking
+- [x] Added supporting methods: Graph.addAll(), Graph.removeEdgesByType(), SymbolTable.merge()
 
 **Phase 9: Testing**
 - [ ] Unit tests
@@ -781,7 +782,7 @@ public void validateGraph(Graph graph) {
 - [x] Phase 5: Serialization
 - [x] Phase 6: Query API
 - [x] Phase 7: Vibe Integration
-- [ ] Phase 8: Optimization
+- [x] Phase 8: Optimization
 - [ ] Phase 9: Testing
 
 ---
@@ -1211,5 +1212,50 @@ public void validateGraph(Graph graph) {
    28. **Interpreter Pattern**: QueryParser interprets query strings into commands
    29. **Facade Pattern**: CommandLineInterface provides a simple CLI over complex graph operations
    30. **MVC Pattern**: Separation of CLI (view), QueryCommand (model), QueryParser (controller)
+
+### Phase 8 Implementation Notes
+
+1. **CachingQueryEngine Design**: Implemented a decorator pattern wrapper around JavaGraphQuery:
+   - Thread-safe using ConcurrentHashMap for cache storage
+   - Caches most query results that are expensive and don't change frequently
+   - Tracks cache hits, misses, and hit rate for monitoring
+   - Selectively caches: findBy* lookups, getAll* lists, getSubclasses, getImplementations, etc.
+   - Does NOT cache: context-dependent queries (getFieldAccesses, getVariableUses), CFG building, reachability
+   - Uses string-based cache keys combining method name and arguments
+
+2. **ParallelGraphBuilder Design**: Implemented parallel file parsing using Java's ExecutorService:
+   - Configurable thread pool size (defaults to available processors)
+   - Parses all Java files concurrently
+   - Uses AtomicInteger for thread-safe statistics tracking
+   - Symbol resolution remains sequential (requires all declarations to be available)
+   - Properly handles exceptions from individual parse tasks
+   - Includes validation phase to check graph integrity
+
+3. **IncrementalGraphBuilder Design**: Implemented smart rebuilds that only process changed files:
+   - Tracks file modification times using Files.getLastModifiedTime()
+   - Maintains mapping of files to their nodes for targeted removal
+   - Supports forceFullRebuild() to clear all state
+   - Can initialize from existing graph and symbol table (for loading saved state)
+   - Properly removes file-specific nodes when files are deleted
+   - Reuses SymbolTable.merge() for combining symbol tables
+
+4. **Supporting Infrastructure**:
+   - Added Graph.addAll() for merging graphs
+   - Added Graph.removeEdgesByType() for cleaning up derived edges
+   - Added SymbolTable.merge() for combining symbol tables
+   - All methods include proper null/blank checks and validation
+
+5. **Performance Considerations**:
+   - CachingQueryEngine: Best for interactive use where same queries are repeated
+   - ParallelGraphBuilder: Best for large projects with many files and many CPU cores
+   - IncrementalGraphBuilder: Best for IDE integration or continuous analysis scenarios
+   - All three can be combined for maximum performance
+
+6. **Design Patterns Applied (Additional)**:
+   31. **Decorator Pattern**: CachingQueryEngine wraps another JavaGraphQuery
+   32. **Proxy Pattern**: CachingQueryEngine acts as a proxy with caching
+   33. **Worker Thread Pattern**: ParallelGraphBuilder uses thread pool for parallel work
+   34. **Memento Pattern**: IncrementalGraphBuilder maintains state across builds
+   35. **Observer Pattern**: File modification tracking is a form of observable state
 
 ### Open Questions for Future Phases

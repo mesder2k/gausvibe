@@ -277,6 +277,41 @@ public class Graph {
     }
     
     /**
+     * Adds all nodes and edges from another graph to this graph.
+     */
+    public void addAll(Graph other) {
+        if (other == null) {
+            throw new IllegalArgumentException("Other graph cannot be null");
+        }
+        addNodes(other.getAllNodes());
+        addEdges(other.getAllEdges());
+    }
+    
+    /**
+     * Removes all edges of a specific type from the graph.
+     * 
+     * @param type the edge type to remove
+     * @return the number of edges removed
+     */
+    public int removeEdgesByType(String type) {
+        if (type == null || type.isBlank()) {
+            return 0;
+        }
+        
+        int count = 0;
+        Iterator<Edge> it = edges.iterator();
+        while (it.hasNext()) {
+            Edge edge = it.next();
+            if (type.equals(edge.getType())) {
+                it.remove();
+                indexes.unindex(edge);
+                count++;
+            }
+        }
+        return count;
+    }
+    
+    /**
      * Returns a string representation of the graph.
      */
     @Override

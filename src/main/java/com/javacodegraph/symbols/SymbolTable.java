@@ -590,4 +590,89 @@ public class SymbolTable {
     public int getFieldCount() {
         return fieldsByFqn.size();
     }
+    
+    /**
+     * Merges another symbol table into this one.
+     * All symbols from the other table are added to this table.
+     * If a symbol already exists, it is not replaced.
+     * 
+     * @param other the symbol table to merge into this one
+     */
+    public void merge(SymbolTable other) {
+        if (other == null) {
+            return;
+        }
+        
+        // Merge classes
+        for (Map.Entry<String, ClassNode> entry : other.classesByFqn.entrySet()) {
+            classesByFqn.putIfAbsent(entry.getKey(), entry.getValue());
+        }
+        for (Map.Entry<String, List<ClassNode>> entry : other.classesByName.entrySet()) {
+            classesByName.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
+                .addAll(entry.getValue());
+        }
+        
+        // Merge methods
+        for (Map.Entry<String, MethodNode> entry : other.methodsBySignature.entrySet()) {
+            methodsBySignature.putIfAbsent(entry.getKey(), entry.getValue());
+        }
+        for (Map.Entry<String, List<MethodNode>> entry : other.methodsByName.entrySet()) {
+            methodsByName.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
+                .addAll(entry.getValue());
+        }
+        
+        // Merge fields
+        for (Map.Entry<String, FieldNode> entry : other.fieldsByFqn.entrySet()) {
+            fieldsByFqn.putIfAbsent(entry.getKey(), entry.getValue());
+        }
+        for (Map.Entry<String, List<FieldNode>> entry : other.fieldsByName.entrySet()) {
+            fieldsByName.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
+                .addAll(entry.getValue());
+        }
+        
+        // Merge packages
+        for (Map.Entry<String, PackageNode> entry : other.packagesByName.entrySet()) {
+            packagesByName.putIfAbsent(entry.getKey(), entry.getValue());
+        }
+        
+        // Merge variables
+        for (Map.Entry<String, VariableNode> entry : other.variablesByName.entrySet()) {
+            variablesByName.putIfAbsent(entry.getKey(), entry.getValue());
+        }
+        
+        // Merge file information
+        for (Map.Entry<Path, String> entry : other.packageByFile.entrySet()) {
+            packageByFile.putIfAbsent(entry.getKey(), entry.getValue());
+        }
+        for (Map.Entry<Path, Set<String>> entry : other.importsByFile.entrySet()) {
+            importsByFile.computeIfAbsent(entry.getKey(), k -> new HashSet<>())
+                .addAll(entry.getValue());
+        }
+        for (Map.Entry<Path, List<ClassNode>> entry : other.classesByFile.entrySet()) {
+            classesByFile.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
+                .addAll(entry.getValue());
+        }
+        
+        // Merge inheritance information
+        for (Map.Entry<String, List<ClassNode>> entry : other.subclassesByClass.entrySet()) {
+            subclassesByClass.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
+                .addAll(entry.getValue());
+        }
+        for (Map.Entry<String, List<ClassNode>> entry : other.directSubclassesByClass.entrySet()) {
+            directSubclassesByClass.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
+                .addAll(entry.getValue());
+        }
+        for (Map.Entry<String, List<ClassNode>> entry : other.implementationsByInterface.entrySet()) {
+            implementationsByInterface.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
+                .addAll(entry.getValue());
+        }
+        for (Map.Entry<String, List<MethodNode>> entry : other.overridesByMethod.entrySet()) {
+            overridesByMethod.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
+                .addAll(entry.getValue());
+        }
+        for (Map.Entry<String, List<MethodNode>> entry : other.overriddenByMethod.entrySet()) {
+            overriddenByMethod.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
+                .addAll(entry.getValue());
+        }
+    }
 }
