@@ -404,6 +404,11 @@ public class Indexes {
         );
     }
     
+    /** Returns all fields. */
+    public List<FieldNode> getAllFields() {
+        return Collections.unmodifiableList(new ArrayList<>(fieldsByFqn.values()));
+    }
+    
     // ==================== Package Lookup Methods ====================
     
     /** Returns package by name. */

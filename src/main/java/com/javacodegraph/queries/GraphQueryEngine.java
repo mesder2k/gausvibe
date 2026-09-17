@@ -66,6 +66,16 @@ public class GraphQueryEngine implements JavaGraphQuery {
     }
     
     @Override
+    public List<MethodNode> getAllMethods() {
+        return indexes.getAllMethods();
+    }
+    
+    @Override
+    public List<FieldNode> getAllFields() {
+        return indexes.getAllFields();
+    }
+    
+    @Override
     public List<ClassNode> getSubclasses(ClassNode clazz) {
         if (clazz == null) {
             return Collections.emptyList();

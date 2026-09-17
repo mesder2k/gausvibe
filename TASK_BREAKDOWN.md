@@ -3,7 +3,7 @@
 **Project:** JavaCodeGraph  
 **Goal:** Structured graph of Java code for Vibe to understand without grep  
 **Version:** 1.0 - 2026-09-17  
-**Status:** Phase 6 complete - Query API (JavaGraphQuery interface and GraphQueryEngine) implemented
+**Status:** Phase 7 complete - Vibe Integration with CLI, Query DSL, and Query Parser implemented
 
 ---
 
@@ -18,6 +18,7 @@
 8. [Key Code Snippets](#-key-code-snippets)
 9. [Edge Cases](#-edge-cases)
 10. [Testing & Validation](#-testing--validation)
+11. [LLM Integration](LLM_INTEGRATION.md) - Vibe Skill implementation details
 
 ---
 
@@ -330,10 +331,23 @@ java-code-graph/
 - [x] All query methods - Class, method, field, variable, AST, file, package, control flow, search, and statistics queries
 
 **Phase 7: Vibe Integration**
-- [ ] CLI query mode
-- [ ] Query DSL
-- [ ] Fallback to grep
-- [ ] Documentation
+- [x] LLM_INTEGRATION.md scoping document
+- [x] Vibe Skill scaffolding (SKILL.md, README.md)
+- [x] Build tool (tool.yaml + execute.py)
+- [x] Query tool (tool.yaml + execute.py)
+- [x] QueryParser with NLP patterns
+- [x] QueryExecutor with graph querying
+- [x] MCP server skeleton (server.py)
+- [x] Java Main.java CLI entry point
+- [x] CommandLineInterface with build/query/interactive modes
+- [x] QueryCommand DTO for parsed queries
+- [x] QueryParser for parsing query strings
+- [x] Added missing query methods (getAllMethods, getAllFields)
+- [ ] Package as JAR for tool execution
+- [ ] Integration testing with Vibe
+- [ ] Query DSL refinement
+- [ ] Fallback to grep for edge cases
+- [ ] Final documentation
 
 **Phase 8: Optimization**
 - [ ] CachingQueryEngine
@@ -766,10 +780,7 @@ public void validateGraph(Graph graph) {
 - [x] Phase 4: Construction
 - [x] Phase 5: Serialization
 - [x] Phase 6: Query API
-- [ ] Phase 4: Construction
-- [ ] Phase 5: Serialization
-- [ ] Phase 6: Query API
-- [ ] Phase 7: Vibe Integration
+- [x] Phase 7: Vibe Integration
 - [ ] Phase 8: Optimization
 - [ ] Phase 9: Testing
 
@@ -1148,3 +1159,57 @@ public void validateGraph(Graph graph) {
 - Should we add a query language (DSL) for expressing complex queries?
 - Should we add support for query pagination for large result sets?
 - Should we add support for query subscriptions (notifications when graph changes affect query results)?
+
+### Phase 7 Implementation Notes
+
+1. **CLI Architecture**: Implemented CommandLineInterface as the main entry point with three modes:
+   - Command mode: Direct execution of build/query commands with arguments
+   - Interactive mode: REPL-style shell for exploring the graph
+   - Query mode: Execute single queries against a loaded graph
+
+2. **Query Parser Design**: Created QueryParser to parse query strings into QueryCommand objects:
+   - Simple colon-delimited syntax: "type:arg1:arg2"
+   - Special handling for commands: build, help, exit, clear, version
+   - Trims whitespace and handles empty arguments
+   - Supports nested query types (e.g., "class:subclasses:FQN")
+
+3. **Query Command DTO**: Implemented QueryCommand as an immutable value object:
+   - Holds query type and arguments list
+   - Provides convenient methods: hasArguments(), getArgumentCount(), getArgument(int)
+   - Proper equals/hashCode/toString implementations
+
+4. **Missing Method Discovery**: During CLI implementation, discovered and added:
+   - getAllMethods() to JavaGraphQuery interface and GraphQueryEngine
+   - getAllFields() to JavaGraphQuery interface and GraphQueryEngine
+   - getAllFields() to Indexes
+   - These were referenced by the CLI but not yet implemented
+
+5. **Command Line Features**:
+   - Build command: Parses Java projects and optionally serializes to JSON
+   - Query command: Loads graphs and executes queries
+   - Interactive shell: Persistent session with build/query/clear/help/exit commands
+   - Formatting: Human-readable output for classes, methods, fields, packages
+   - Help system: Context-sensitive help for commands and query types
+
+6. **Query Type Support**: Implemented query handlers for:
+   - Class queries: find, by name, subclasses, implementations, superclass, interfaces
+   - Method queries: find by signature, by name, by class, constructors, static, public
+   - Field queries: find by FQN, by class, by name
+   - Package queries: find, all, classes in package
+   - File queries: nodes in file
+   - Search queries: nodes by type, edges by type, nodes with modifier
+   - Statistics queries: total nodes/edges
+
+7. **Integration with Existing Components**:
+   - Updated Main.java to delegate to CommandLineInterface
+   - GraphQueryEngine already had most query methods implemented
+   - Indexes already had the necessary index methods
+   - Only needed to add getAllMethods() and getAllFields() to complete the API
+
+8. **Design Patterns Applied (Additional)**:
+   27. **Command Pattern**: QueryCommand encapsulates a query request
+   28. **Interpreter Pattern**: QueryParser interprets query strings into commands
+   29. **Facade Pattern**: CommandLineInterface provides a simple CLI over complex graph operations
+   30. **MVC Pattern**: Separation of CLI (view), QueryCommand (model), QueryParser (controller)
+
+### Open Questions for Future Phases

@@ -48,6 +48,16 @@ public interface JavaGraphQuery {
     List<ClassNode> getAllClasses();
     
     /**
+     * Returns all methods in the graph.
+     */
+    List<MethodNode> getAllMethods();
+    
+    /**
+     * Returns all fields in the graph.
+     */
+    List<FieldNode> getAllFields();
+    
+    /**
      * Returns all direct subclasses of a class.
      */
     List<ClassNode> getSubclasses(ClassNode clazz);
