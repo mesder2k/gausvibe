@@ -66,6 +66,11 @@ public class Indexes {
     /** Maps to node ID to list of incoming edges */
     private final Map<String, List<Edge>> edgesTo = new ConcurrentHashMap<>();
     
+    // ==================== Call Graph Index ====================
+    
+    /** Optional call graph index for faster call graph queries */
+    private CallGraphIndex callGraphIndex = null;
+    
     // ==================== Index Management ====================
     
     /**
@@ -160,6 +165,34 @@ public class Indexes {
         String name = pkg.getName();
         if (name != null && !name.isBlank()) {
             packagesByName.put(name, pkg);
+        }
+    }
+    
+    /**
+     * Indexes an edge for fast lookup.
+     * Also updates the call graph index if enabled.
+     */
+    public void index(Edge edge) {
+        if (edge == null) {
+            return;
+        }
+        
+        String type = edge.getType();
+        String fromId = edge.getFromId();
+        String toId = edge.getToId();
+        
+        // Index by type
+        edgesByType.computeIfAbsent(type, k -> new ArrayList<>()).add(edge);
+        
+        // Index by from node
+        edgesFrom.computeIfAbsent(fromId, k -> new ArrayList<>()).add(edge);
+        
+        // Index by to node
+        edgesTo.computeIfAbsent(toId, k -> new ArrayList<>()).add(edge);
+        
+        // Update call graph index if enabled
+        if (callGraphIndex != null && EdgeTypes.CALLS.equals(type)) {
+            callGraphIndex.indexCall(fromId, toId);
         }
     }
     
@@ -274,29 +307,8 @@ public class Indexes {
     }
     
     /**
-     * Indexes an edge for fast lookup.
-     */
-    public void index(Edge edge) {
-        if (edge == null) {
-            return;
-        }
-        
-        String type = edge.getType();
-        String fromId = edge.getFromId();
-        String toId = edge.getToId();
-        
-        // Index by type
-        edgesByType.computeIfAbsent(type, k -> new ArrayList<>()).add(edge);
-        
-        // Index by from node
-        edgesFrom.computeIfAbsent(fromId, k -> new ArrayList<>()).add(edge);
-        
-        // Index by to node
-        edgesTo.computeIfAbsent(toId, k -> new ArrayList<>()).add(edge);
-    }
-    
-    /**
      * Removes an edge from all indexes.
+     * Also updates the call graph index if enabled.
      */
     public void unindex(Edge edge) {
         if (edge == null) {
@@ -323,6 +335,11 @@ public class Indexes {
         List<Edge> toList = edgesTo.get(toId);
         if (toList != null) {
             toList.remove(edge);
+        }
+        
+        // Update call graph index if enabled
+        if (callGraphIndex != null && EdgeTypes.CALLS.equals(type)) {
+            callGraphIndex.unindexCall(fromId, toId);
         }
     }
     
@@ -469,6 +486,53 @@ public class Indexes {
             .collect(Collectors.toList());
     }
     
+    // ==================== Call Graph Index ====================
+    
+    /**
+     * Enables the call graph index for faster call graph queries.
+     * When enabled, CALLS edges are automatically indexed.
+     */
+    public void enableCallGraphIndex() {
+        if (callGraphIndex == null) {
+            callGraphIndex = new CallGraphIndex();
+        }
+    }
+    
+    /**
+     * Enables the call graph index with custom configuration.
+     */
+    public void enableCallGraphIndex(int maxTransitiveDepth) {
+        if (callGraphIndex == null) {
+            callGraphIndex = new CallGraphIndex(maxTransitiveDepth);
+        }
+    }
+    
+    /**
+     * Disables the call graph index.
+     */
+    public void disableCallGraphIndex() {
+        if (callGraphIndex != null) {
+            callGraphIndex.clear();
+            callGraphIndex = null;
+        }
+    }
+    
+    /**
+     * Returns the call graph index, or null if not enabled.
+     */
+    public CallGraphIndex getCallGraphIndex() {
+        return callGraphIndex;
+    }
+    
+    /**
+     * Returns whether the call graph index is enabled.
+     */
+    public boolean isCallGraphIndexEnabled() {
+        return callGraphIndex != null;
+    }
+    
+    // ==================== Statistics ====================
+    
     /** Returns the number of indexed nodes. */
     public int getNodeCount() {
         return nodesById.size();
@@ -494,5 +558,9 @@ public class Indexes {
         edgesByType.clear();
         edgesFrom.clear();
         edgesTo.clear();
+        
+        if (callGraphIndex != null) {
+            callGraphIndex.clear();
+        }
     }
 }

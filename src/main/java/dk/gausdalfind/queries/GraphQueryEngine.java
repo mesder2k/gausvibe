@@ -21,6 +21,9 @@ public class GraphQueryEngine implements JavaGraphQuery {
     private final Graph graph;
     private final Indexes indexes;
     
+    // Text search index for efficient text queries
+    private TextSearchIndex textSearchIndex = null;
+    
     // Query cache for performance
     private final Map<String, Object> queryCache = new HashMap<>();
     
@@ -40,6 +43,19 @@ public class GraphQueryEngine implements JavaGraphQuery {
         }
         this.graph = graph;
         this.indexes = graph.getIndexes();
+    }
+    
+    /**
+     * Creates a new query engine with text search enabled.
+     * 
+     * @param graph the graph to query
+     * @param enableTextSearch if true, enables text search indexing
+     */
+    public GraphQueryEngine(Graph graph, boolean enableTextSearch) {
+        this(graph);
+        if (enableTextSearch) {
+            enableTextSearchIndex();
+        }
     }
     
     // ==================== CLASS QUERIES ====================
@@ -712,6 +728,132 @@ public class GraphQueryEngine implements JavaGraphQuery {
         }
         
         return false;
+    }
+    
+    // ==================== TEXT SEARCH INDEX ====================
+    
+    /**
+     * Enables the text search index.
+     */
+    public void enableTextSearchIndex() {
+        if (textSearchIndex == null) {
+            textSearchIndex = new TextSearchIndex();
+            // Index all existing nodes
+            for (Node node : indexes.getAllNodes()) {
+                textSearchIndex.index(node);
+            }
+        }
+    }
+    
+    /**
+     * Enables the text search index with custom configuration.
+     */
+    public void enableTextSearchIndex(Set<String> stopWords, int minTokenLength, int maxTokenLength) {
+        if (textSearchIndex == null) {
+            textSearchIndex = new TextSearchIndex(stopWords, minTokenLength, maxTokenLength);
+            // Index all existing nodes
+            for (Node node : indexes.getAllNodes()) {
+                textSearchIndex.index(node);
+            }
+        }
+    }
+    
+    /**
+     * Disables the text search index.
+     */
+    public void disableTextSearchIndex() {
+        if (textSearchIndex != null) {
+            textSearchIndex.clear();
+            textSearchIndex = null;
+        }
+    }
+    
+    /**
+     * Returns whether the text search index is enabled.
+     */
+    public boolean isTextSearchIndexEnabled() {
+        return textSearchIndex != null;
+    }
+    
+    /**
+     * Returns the text search index, or null if not enabled.
+     */
+    public TextSearchIndex getTextSearchIndex() {
+        return textSearchIndex;
+    }
+    
+    /**
+     * Searches for nodes containing the specified text token.
+     * Uses OR logic: any node containing the token matches.
+     * 
+     * @param token the token to search for
+     * @return list of matching nodes
+     */
+    public List<Node> searchByText(String token) {
+        if (!isTextSearchIndexEnabled() || token == null || token.isBlank()) {
+            return Collections.emptyList();
+        }
+        
+        Set<String> nodeIds = textSearchIndex.search(token);
+        return nodeIds.stream()
+            .map(id -> graph.getNode(id).orElse(null))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Searches for nodes containing all of the specified tokens (AND search).
+     * 
+     * @param tokens the tokens all nodes must contain
+     * @return list of matching nodes
+     */
+    public List<Node> searchByTextAnd(Collection<String> tokens) {
+        if (!isTextSearchIndexEnabled() || tokens == null || tokens.isEmpty()) {
+            return Collections.emptyList();
+        }
+        
+        Set<String> nodeIds = textSearchIndex.searchAnd(tokens);
+        return nodeIds.stream()
+            .map(id -> graph.getNode(id).orElse(null))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Searches for nodes containing any of the specified tokens (OR search).
+     * 
+     * @param tokens the tokens any node must contain
+     * @return list of matching nodes
+     */
+    public List<Node> searchByTextOr(Collection<String> tokens) {
+        if (!isTextSearchIndexEnabled() || tokens == null || tokens.isEmpty()) {
+            return Collections.emptyList();
+        }
+        
+        Set<String> nodeIds = textSearchIndex.searchOr(tokens);
+        return nodeIds.stream()
+            .map(id -> graph.getNode(id).orElse(null))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Advanced text search with a query string.
+     * Supports AND, OR, and phrase searches.
+     * 
+     * @param query the search query
+     * @return list of matching nodes
+     */
+    public List<Node> searchByQuery(String query) {
+        if (!isTextSearchIndexEnabled() || query == null || query.isBlank()) {
+            return Collections.emptyList();
+        }
+        
+        Set<String> nodeIds = textSearchIndex.searchQuery(query);
+        return nodeIds.stream()
+            .map(id -> graph.getNode(id).orElse(null))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
     }
     
     // ==================== CACHE MANAGEMENT ====================
