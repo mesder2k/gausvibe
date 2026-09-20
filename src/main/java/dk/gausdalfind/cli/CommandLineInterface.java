@@ -704,7 +704,7 @@ public class CommandLineInterface {
         System.out.println("  REMOVE_IMPORT        - Remove an import statement");
         System.out.println();
         System.out.println("Example:");
-        System.out.println("  edit --graph graph.json --operations '[{"type": "ADD_METHOD", "target_class": "com.example.MyClass", "name": "newMethod", "return_type": "void"}]'");
+        System.out.println("  edit --graph graph.json --operations \"[{\"type\": \"ADD_METHOD\", \"target_class\": \"com.example.MyClass\", \"name\": \"newMethod\", \"return_type\": \"void\"}]\"");
     }
     
     private void printInteractiveHelp() {
@@ -748,7 +748,7 @@ public class CommandLineInterface {
             return "No classes found";
         }
         StringBuilder sb = new StringBuilder();
-        sb.append("Classes ("").append(classes.size()).append("):\n");
+        sb.append("Classes (\"").append(classes.size()).append("):\n");
         for (ClassNode cls : classes) {
             sb.append("  - ").append(cls.getQualifiedName());
             if (!cls.getInterfaces().isEmpty()) {
@@ -782,7 +782,7 @@ public class CommandLineInterface {
             return "No methods found";
         }
         StringBuilder sb = new StringBuilder();
-        sb.append("Methods ("").append(methods.size()).append("):\n");
+        sb.append("Methods (\"").append(methods.size()).append("):\n");
         for (MethodNode method : methods) {
             sb.append("  - ").append(method.getSignature());
             if (method.isConstructor()) {
@@ -812,7 +812,7 @@ public class CommandLineInterface {
             return "No fields found";
         }
         StringBuilder sb = new StringBuilder();
-        sb.append("Fields ("").append(fields.size()).append("):\n");
+        sb.append("Fields (\"").append(fields.size()).append("):\n");
         for (FieldNode field : fields) {
             sb.append("  - ").append(field.getName()).append(": ").append(field.getDataType()).append("\n");
         }
@@ -828,7 +828,7 @@ public class CommandLineInterface {
             return "No packages found";
         }
         StringBuilder sb = new StringBuilder();
-        sb.append("Packages ("").append(packages.size()).append("):\n");
+        sb.append("Packages (\"").append(packages.size()).append("):\n");
         for (PackageNode pkg : packages) {
             sb.append("  - ").append(pkg.getName()).append("\n");
         }
@@ -841,13 +841,13 @@ public class CommandLineInterface {
         }
         StringBuilder sb = new StringBuilder();
         int count = Math.min(nodes.size(), limit);
-        sb.append("Nodes ("").append(nodes.size()).append(", showing ").append(count).append("):\n");
+        sb.append("Nodes (\"").append(nodes.size()).append(", showing ").append(count).append("):\n");
         for (int i = 0; i < count; i++) {
             Node node = nodes.get(i);
             sb.append("  - ").append(node.getType()).append(": ").append(node.getId());
             if (node instanceof DeclarationNode) {
                 DeclarationNode decl = (DeclarationNode) node;
-                sb.append(" ("").append(decl.getName()).append(")");
+                sb.append(" (\"").append(decl.getName()).append(")");
             }
             sb.append("\n");
         }
@@ -863,7 +863,7 @@ public class CommandLineInterface {
         }
         StringBuilder sb = new StringBuilder();
         int count = Math.min(edges.size(), limit);
-        sb.append("Edges ("").append(edges.size()).append(", showing ").append(count).append("):\n");
+        sb.append("Edges (\"").append(edges.size()).append(", showing ").append(count).append("):\n");
         for (int i = 0; i < count; i++) {
             Edge edge = edges.get(i);
             sb.append("  - ").append(edge.getType()).append(": ")

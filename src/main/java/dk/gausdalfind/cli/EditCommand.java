@@ -271,7 +271,7 @@ public class EditCommand {
         List<Operation> operations = new ArrayList<>();
         
         // Simple parsing - split by lines or newlines
-        String[] lines = operationsJson.split("[\[\]\{\}]+");
+        String[] lines = operationsJson.split("][{]+");
         for (String line : lines) {
             line = line.trim();
             if (!line.isEmpty()) {
