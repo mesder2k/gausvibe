@@ -3,7 +3,7 @@ gausvibe-edit
 id: gausvibe-edit
 version: 1.0.0
 author: Magnus Find
-license: MIT
+license: Proprietary
 
 type: command
 executable: execute.py

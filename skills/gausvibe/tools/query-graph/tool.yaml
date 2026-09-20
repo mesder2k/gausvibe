@@ -3,7 +3,7 @@ id: gausvibe-query
 description: Execute queries on a Java code graph for LLM code understanding
 version: 1.0.0
 author: Magnus Find
-license: MIT
+license: Proprietary
 
 # Tool type - determines how Vibe executes this tool
 type: command

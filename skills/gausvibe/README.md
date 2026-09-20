@@ -93,4 +93,4 @@ python tools/query-graph/execute.py --graph /path/to/graph.json --query "all cla
 
 ## 📜 License
 
-MIT License
+Proprietary - All Rights Reserved. See LICENSE file for details.

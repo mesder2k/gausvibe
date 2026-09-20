@@ -5,6 +5,7 @@ import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
@@ -14,10 +15,14 @@ import java.util.stream.Stream;
  * - File extensions (.java by default)
  * - Directory exclusion patterns
  * - Custom predicates
+ * - Caching for performance
  */
 public final class JavaFileCollector {
     
     private static final String DEFAULT_EXTENSION = ".java";
+    
+    // Shared cache instance for file listings
+    private static final FileSystemCache fileCache = new FileSystemCache();
     
     private JavaFileCollector() {
         // Prevent instantiation
@@ -25,6 +30,7 @@ public final class JavaFileCollector {
     
     /**
      * Collects all Java source files from the given directory.
+     * Uses cache for improved performance on repeated queries.
      * 
      * @param directory the root directory to search
      * @return list of Java file paths
@@ -32,6 +38,18 @@ public final class JavaFileCollector {
      */
     public static List<Path> collect(Path directory) throws IOException {
         return collect(directory, DEFAULT_EXTENSION);
+    }
+    
+    /**
+     * Collects all Java source files from the given directory.
+     * Uses cache for improved performance on repeated queries.
+     * 
+     * @param directory the root directory to search
+     * @return list of Java file paths
+     * @throws IOException if an I/O error occurs
+     */
+    public static List<Path> collectCached(Path directory) throws IOException {
+        return collectCached(directory, DEFAULT_EXTENSION);
     }
     
     /**
@@ -59,6 +77,31 @@ public final class JavaFileCollector {
                 (path, attrs) -> isJavaFile(path, attrs, extension))) {
             paths.forEach(files::add);
         }
+        
+        return files;
+    }
+    
+    /**
+     * Collects all files with the specified extension from the given directory.
+     * Uses cache for improved performance on repeated queries.
+     * 
+     * @param directory the root directory to search
+     * @param extension the file extension to match (e.g., ".java")
+     * @return list of file paths with the specified extension
+     * @throws IOException if an I/O error occurs
+     */
+    public static List<Path> collectCached(Path directory, String extension) throws IOException {
+        // Try to get from cache first
+        Optional<List<Path>> cached = fileCache.get(directory);
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+        
+        // Use the standard collect method
+        List<Path> files = collect(directory, extension);
+        
+        // Cache the result
+        fileCache.put(directory, files);
         
         return files;
     }
@@ -142,12 +185,38 @@ public final class JavaFileCollector {
     
     /**
      * Collects Java files from the standard source directories.
+     * Uses caching for improved performance.
      * 
      * @param projectRoot the project root directory
      * @return list of Java file paths from src/main/java and src/test/java
      * @throws IOException if an I/O error occurs
      */
     public static List<Path> collectFromStandardDirectories(Path projectRoot) throws IOException {
+        List<Path> files = new ArrayList<>();
+        
+        // Standard source directories
+        Path mainSrc = projectRoot.resolve("src/main/java");
+        Path testSrc = projectRoot.resolve("src/test/java");
+        
+        if (Files.isDirectory(mainSrc)) {
+            files.addAll(collectCached(mainSrc));
+        }
+        if (Files.isDirectory(testSrc)) {
+            files.addAll(collectCached(testSrc));
+        }
+        
+        return files;
+    }
+    
+    /**
+     * Collects Java files from the standard source directories without caching.
+     * Useful when you need fresh results.
+     * 
+     * @param projectRoot the project root directory
+     * @return list of Java file paths from src/main/java and src/test/java
+     * @throws IOException if an I/O error occurs
+     */
+    public static List<Path> collectFromStandardDirectoriesFresh(Path projectRoot) throws IOException {
         List<Path> files = new ArrayList<>();
         
         // Standard source directories
@@ -169,5 +238,32 @@ public final class JavaFileCollector {
      */
     public static int countJavaFiles(Path directory) throws IOException {
         return collect(directory).size();
+    }
+    
+    /**
+     * Returns the file system cache used by this collector.
+     * Useful for cache management and statistics.
+     * 
+     * @return the file system cache instance
+     */
+    public static FileSystemCache getFileCache() {
+        return fileCache;
+    }
+    
+    /**
+     * Clears the file system cache.
+     * Useful when you need to force a fresh scan.
+     */
+    public static void clearCache() {
+        fileCache.invalidateAll();
+    }
+    
+    /**
+     * Gets cache statistics.
+     * 
+     * @return cache statistics string
+     */
+    public static String getCacheStatistics() {
+        return fileCache.getStatistics();
     }
 }

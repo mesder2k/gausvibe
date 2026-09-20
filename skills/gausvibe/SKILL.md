@@ -3,7 +3,7 @@
 **ID:** gausvibe
 **Version:** 1.0.0
 **Author:** Magnus Find
-**License:** MIT
+**License:** Proprietary - All Rights Reserved
 **Homepage:** https://github.com/magnusfind/gausvibe
 
 ---
@@ -604,7 +604,7 @@ vibe tool gausvibe:build --path . --verbose
 
 ## 📜 LICENSE
 
-MIT License - see LICENSE file for details.
+Proprietary - All Rights Reserved. This software is the confidential and proprietary information of GausVibe. Use, reproduction, or distribution is permitted only with express written authorization.
 
 ---
 
