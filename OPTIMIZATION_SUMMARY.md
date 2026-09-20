@@ -160,7 +160,10 @@ Set<String> transitiveCallers = cgIndex.getTransitiveCallers(methodId);
 ### Modified Files
 - `src/main/java/dk/gausdalfind/model/Indexes.java` (added CallGraphIndex integration)
 - `src/main/java/dk/gausdalfind/queries/GraphQueryEngine.java` (added TextSearchIndex integration)
+- `src/main/java/dk/gausdalfind/parser/JavaFileCollector.java` (added parallel file collection methods)
+- `src/main/java/dk/gausdalfind/graph/GausVibeBuilder.java` (added parallel parsing)
 - `OPTIMIZATION_SUMMARY.md` (this file)
+- `PERFORMANCE_OPTIMIZATION_PLAN.md` (updated status)
 
 ---
 
@@ -221,7 +224,7 @@ gausvibe> query:method:com.example.MyClass#methodName:callers
 ### Phase 2: Core Optimizations (IN PROGRESS 📋)
 - Text search index ✅
 - Call graph index ✅
-- Parallel file processing ⏳
+- Parallel file processing ✅
 - **Duration**: 1 week
 - **Impact**: 80-90% improvement in search and call graph operations
 
@@ -257,7 +260,7 @@ mvn compile 2>&1 | grep -i error
 
 The optimizations implemented provide the foundation for 80-95% performance improvements for common operations that models currently perform with expensive shell commands. The comprehensive optimization plan outlines a clear path forward for implementing additional improvements.
 
-**Current Status**: 70% of Phase 2 deliverables completed, ready for integration and testing.
+**Current Status**: 85% of Phase 2 deliverables completed (Parallel File Processing now implemented), ready for integration and testing.
 
 ---
 
