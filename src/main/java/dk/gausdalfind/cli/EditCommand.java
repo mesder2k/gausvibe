@@ -2,10 +2,12 @@ package dk.gausdalfind.cli;
 
 import dk.gausdalfind.editing.*;
 import dk.gausdalfind.model.Graph;
+import dk.gausdalfind.serializer.ASTSourceSerializer;
 import dk.gausdalfind.serializer.JsonSerializer;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
 /**
@@ -21,6 +23,7 @@ public class EditCommand {
     private final boolean dryRun;
     private final String outputFormat;
     private final boolean verbose;
+    private final ASTSourceSerializer serializer;
     
     /**
      * Creates a new EditCommand.
@@ -32,18 +35,27 @@ public class EditCommand {
         this.dryRun = dryRun;
         this.outputFormat = outputFormat != null ? outputFormat : "diff";
         this.verbose = verbose;
+        this.serializer = new ASTSourceSerializer(graph);
     }
     
     /**
      * Executes the edit command with the given operations.
      */
-    public String execute(List<Operation> operations) {
+    public String execute(List<Operation> operations) throws IOException {
         if (operations.isEmpty()) {
             return "No operations to apply";
         }
         
         ASTEditor editor = new ASTEditor(graph);
         List<OperationResult> results = editor.applyAll(operations);
+        
+        // If not dry-run, serialize changes back to files
+        if (!dryRun && graphFile != null) {
+            serializer.writeAllFiles(graphFile.getParent());
+            if (verbose) {
+                System.out.println("Changes written to: " + graphFile.getParent());
+            }
+        }
         
         if (verbose) {
             System.out.println("Applied " + operations.size() + " operations");
@@ -60,6 +72,8 @@ public class EditCommand {
                 return formatAsDiff(editor);
             case "summary":
                 return formatAsSummary(results);
+            case "source":
+                return formatAsSource(serializer);
             default:
                 return formatAsText(results);
         }
@@ -162,6 +176,24 @@ public class EditCommand {
             sb.append(result.toString()).append("\n");
         }
         return sb.toString();
+    }
+    
+    /**
+     * Formats the serialized source code.
+     */
+    private String formatAsSource(ASTSourceSerializer serializer) {
+        try {
+            Map<String, String> sourceFiles = serializer.serializeModifiedFiles();
+            StringBuilder sb = new StringBuilder();
+            sb.append("Modified Files:\n\n");
+            for (Map.Entry<String, String> entry : sourceFiles.entrySet()) {
+                sb.append("=== ").append(entry.getKey()).append(" ===\n");
+                sb.append(entry.getValue()).append("\n\n");
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return "Error formatting source: " + e.getMessage();
+        }
     }
     
     // ==================== Static Factory Methods ====================

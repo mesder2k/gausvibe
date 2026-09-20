@@ -82,7 +82,7 @@ public class ASTEditor {
         }
         
         // Create the method node
-        MethodNode methodNode = createMethodNode(op);
+        MethodNode methodNode = createMethodNode(op, targetClass.get());
         graph.addNode(methodNode);
         
         // Add HAS_METHOD edge
@@ -98,7 +98,7 @@ public class ASTEditor {
         return OperationResult.success(methodNode.getId());
     }
     
-    private MethodNode createMethodNode(AddMethodOperation op) {
+    private MethodNode createMethodNode(AddMethodOperation op, ClassNode targetClass) {
         String qualifiedName = op.getTargetClass() + "." + op.getName();
         String id = NodeIdGenerator.forDeclaration(
             NodeIdGenerator.NodeType.METHOD, 
@@ -108,16 +108,15 @@ public class ASTEditor {
         return new MethodNode(
             id,
             op.getName(),
-            qualifiedName,
             op.getSignature(),
+            qualifiedName,
             op.getReturnType(),
             op.getModifiers(),
             op.isConstructor(),
             op.isStatic(),
             op.isAbstract(),
             op.getThrownExceptions(),
-            op.getTargetClass(),
-            null, // file - will be set during serialization
+            targetClass.getFile(),  // file path from parent class
             null, // start position
             null  // end position
         );
@@ -196,8 +195,7 @@ public class ASTEditor {
             op.getModifiers(),
             op.isStatic(),
             op.isFinal(),
-            targetClass.getQualifiedName(),
-            null, // file
+            targetClass.getFile(),  // file path from parent class
             null, // start position
             null  // end position
         );

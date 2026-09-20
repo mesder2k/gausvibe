@@ -224,6 +224,7 @@ public class CommandLineInterface {
                     operationsJson = args.get(++i);
                     break;
                 case "--dry-run":
+                case "--dry_run":
                     dryRun = true;
                     break;
                 case "--output":
@@ -249,24 +250,33 @@ public class CommandLineInterface {
         }
         
         // Load graph
+        Path graphFilePath = null;
         if (graph == null) {
             if (graphPath != null) {
                 loadGraph(graphPath);
+                graphFilePath = Path.of(graphPath);
             } else if (this.graphFile != null) {
                 loadGraph(this.graphFile);
+                graphFilePath = this.graphFile;
             } else {
                 System.err.println("No graph loaded and no graph file specified");
                 System.err.println("Use 'build' command first or specify --graph option");
                 System.exit(1);
             }
+        } else {
+            graphFilePath = this.graphFile;
         }
         
         // Parse operations and execute
         try {
             List<Operation> operations = EditCommand.parseOperations(operationsJson);
-            EditCommand editCmd = new EditCommand(graph, graphFile, dryRun, outputFormat, verbose);
+            EditCommand editCmd = new EditCommand(graph, graphFilePath, dryRun, outputFormat, verbose);
             String result = editCmd.execute(operations);
             System.out.println(result);
+            
+            if (!dryRun) {
+                System.out.println("\nChanges applied to: " + graphFilePath);
+            }
         } catch (Exception e) {
             System.err.println("Error executing edit: " + e.getMessage());
             e.printStackTrace();
