@@ -552,6 +552,37 @@ Vibe: [calls gausvibe:query --query "getOverriddenMethod(process)"]
 
 ---
 
+## 🎯 CODING HARNESS USAGE
+
+For **complete documentation on integrating GausVibe as a library** into your Java applications, CI/CD pipelines, testing frameworks, or custom tools, see **[USAGE.md](../../USAGE.md)**.
+
+### Quick Reference: Library Integration
+
+```java
+// Build graph programmatically
+GausVibeBuilder builder = new GausVibeBuilder(Paths.get("/project"));
+Graph graph = builder.build();
+
+// Query the graph
+JavaGraphQuery queryEngine = new GraphQueryEngine(graph);
+List<ClassNode> classes = queryEngine.findClassesByName("Calculator");
+
+// Get callers
+MethodNode method = queryEngine.findMethodBySignature("add(int,int)");
+List<MethodNode> callers = queryEngine.getCallers(method);
+```
+
+### Integration Points
+
+- **Testing Frameworks**: JUnit, TestNG
+- **CI/CD Pipelines**: GitHub Actions, Jenkins
+- **IDE Plugins**: Eclipse, IntelliJ
+- **Custom Tools**: REST APIs, CLI wrappers
+
+For detailed examples, see **[USAGE.md#integration-examples](../../USAGE.md#integration-examples)**.
+
+---
+
 ## 🔍 TROUBLESHOOTING
 
 ### Common Issues
@@ -578,6 +609,8 @@ vibe tool gausvibe:build --path . --verbose
 
 ## 📖 RELATED DOCUMENTATION
 
+- **[USAGE.md](../../USAGE.md)** - **Complete usage guide for coding harness integration**
+- **[README.md](../../README.md)** - Project overview and quick start
 - [TASK_BREAKDOWN.md](../../TASK_BREAKDOWN.md) - Core project implementation details
 - [DEBUGGER_INTEGRATION.md](../../DEBUGGER_INTEGRATION.md) - Differential debugging extension
 - [LLM_INTEGRATION.md](../../LLM_INTEGRATION.md) - LLM integration scoping document

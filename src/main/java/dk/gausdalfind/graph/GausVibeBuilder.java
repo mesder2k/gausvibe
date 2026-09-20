@@ -119,8 +119,12 @@ public class GausVibeBuilder {
             List<Path> javaFiles = collectJavaFiles();
             
             // Phase 3: Parse each file and build nodes/edges
-            for (Path file : javaFiles) {
-                parseFile(file);
+            if (parallel) {
+                javaFiles.parallelStream().forEach(this::parseFile);
+            } else {
+                for (Path file : javaFiles) {
+                    parseFile(file);
+                }
             }
             
             // Phase 4: Resolve symbols

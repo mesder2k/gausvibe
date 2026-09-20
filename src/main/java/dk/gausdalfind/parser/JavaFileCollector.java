@@ -6,6 +6,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -30,7 +31,7 @@ public final class JavaFileCollector {
     
     /**
      * Collects all Java source files from the given directory.
-     * Uses cache for improved performance on repeated queries.
+     * Uses sequential processing.
      * 
      * @param directory the root directory to search
      * @return list of Java file paths
@@ -38,6 +39,30 @@ public final class JavaFileCollector {
      */
     public static List<Path> collect(Path directory) throws IOException {
         return collect(directory, DEFAULT_EXTENSION);
+    }
+    
+    /**
+     * Collects all Java source files from the given directory using parallel processing.
+     * This provides better performance on multi-core systems for large codebases.
+     * 
+     * @param directory the root directory to search
+     * @return list of Java file paths
+     * @throws IOException if an I/O error occurs
+     */
+    public static List<Path> collectParallel(Path directory) throws IOException {
+        return collectParallel(directory, DEFAULT_EXTENSION);
+    }
+    
+    /**
+     * Collects all Java source files from the given directory using parallel processing.
+     * Uses cache for improved performance on repeated queries.
+     * 
+     * @param directory the root directory to search
+     * @return list of Java file paths
+     * @throws IOException if an I/O error occurs
+     */
+    public static List<Path> collectParallelCached(Path directory) throws IOException {
+        return collectParallelCached(directory, DEFAULT_EXTENSION);
     }
     
     /**
@@ -77,6 +102,62 @@ public final class JavaFileCollector {
                 (path, attrs) -> isJavaFile(path, attrs, extension))) {
             paths.forEach(files::add);
         }
+        
+        return files;
+    }
+    
+    /**
+     * Collects all files with the specified extension from the given directory using parallel processing.
+     * This provides better performance on multi-core systems for large codebases.
+     * 
+     * @param directory the root directory to search
+     * @param extension the file extension to match (e.g., ".java")
+     * @return list of file paths with the specified extension
+     * @throws IOException if an I/O error occurs
+     */
+    public static List<Path> collectParallel(Path directory, String extension) throws IOException {
+        if (directory == null) {
+            throw new IllegalArgumentException("Directory cannot be null");
+        }
+        if (!Files.isDirectory(directory)) {
+            throw new IllegalArgumentException("Path is not a directory: " + directory);
+        }
+        if (extension == null || extension.isBlank()) {
+            throw new IllegalArgumentException("Extension cannot be null or blank");
+        }
+        
+        List<Path> files;
+        
+        try (Stream<Path> paths = Files.find(directory, Integer.MAX_VALUE, 
+                (path, attrs) -> isJavaFile(path, attrs, extension))) {
+            files = paths.parallel()
+                    .collect(Collectors.toList());
+        }
+        
+        return files;
+    }
+    
+    /**
+     * Collects all files with the specified extension from the given directory using parallel processing.
+     * Uses cache for improved performance on repeated queries.
+     * 
+     * @param directory the root directory to search
+     * @param extension the file extension to match (e.g., ".java")
+     * @return list of file paths with the specified extension
+     * @throws IOException if an I/O error occurs
+     */
+    public static List<Path> collectParallelCached(Path directory, String extension) throws IOException {
+        // Try to get from cache first
+        Optional<List<Path>> cached = fileCache.get(directory);
+        if (cached.isPresent()) {
+            return cached.get();
+        }
+        
+        // Use parallel collection
+        List<Path> files = collectParallel(directory, extension);
+        
+        // Cache the result
+        fileCache.put(directory, files);
         
         return files;
     }
