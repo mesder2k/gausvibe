@@ -89,14 +89,16 @@ public class StatementVisitor extends VoidVisitorAdapter<VisitorContext> {
         super.visit(ifStmt, context);
         
         // Process condition
-        ifStmt.getCondition().ifPresent(condition -> {
+        Expression condition = ifStmt.getCondition();
+        if (condition != null) {
             condition.accept(new ExpressionVisitor(graph, context), context);
-        });
+        }
         
         // Process then branch
-        ifStmt.getThenStmt().ifPresent(thenStmt -> {
+        Statement thenStmt = ifStmt.getThenStmt();
+        if (thenStmt != null) {
             thenStmt.accept(this, context);
-        });
+        }
         
         // Process else branch
         ifStmt.getElseStmt().ifPresent(elseStmt -> {
@@ -127,9 +129,10 @@ public class StatementVisitor extends VoidVisitorAdapter<VisitorContext> {
         });
         
         // Process body
-        forStmt.getBody().ifPresent(body -> {
+        Statement body = forStmt.getBody();
+        if (body != null) {
             body.accept(this, context);
-        });
+        }
     }
     
     /**
@@ -140,14 +143,16 @@ public class StatementVisitor extends VoidVisitorAdapter<VisitorContext> {
         super.visit(whileStmt, context);
         
         // Process condition
-        whileStmt.getCondition().ifPresent(condition -> {
+        Expression condition = whileStmt.getCondition();
+        if (condition != null) {
             condition.accept(new ExpressionVisitor(graph, context), context);
-        });
+        }
         
         // Process body
-        whileStmt.getBody().ifPresent(body -> {
+        Statement body = whileStmt.getBody();
+        if (body != null) {
             body.accept(this, context);
-        });
+        }
     }
     
     /**
@@ -158,14 +163,16 @@ public class StatementVisitor extends VoidVisitorAdapter<VisitorContext> {
         super.visit(doStmt, context);
         
         // Process body
-        doStmt.getBody().ifPresent(body -> {
+        Statement body = doStmt.getBody();
+        if (body != null) {
             body.accept(this, context);
-        });
+        }
         
         // Process condition
-        doStmt.getCondition().ifPresent(condition -> {
+        Expression condition = doStmt.getCondition();
+        if (condition != null) {
             condition.accept(new ExpressionVisitor(graph, context), context);
-        });
+        }
     }
     
     /**
@@ -176,9 +183,10 @@ public class StatementVisitor extends VoidVisitorAdapter<VisitorContext> {
         super.visit(tryStmt, context);
         
         // Process try block
-        tryStmt.getTryBlock().ifPresent(block -> {
-            block.accept(this, context);
-        });
+        BlockStmt tryBlock = tryStmt.getTryBlock();
+        if (tryBlock != null) {
+            tryBlock.accept(this, context);
+        }
         
         // Process catch clauses
         for (CatchClause catchClause : tryStmt.getCatchClauses()) {
@@ -210,9 +218,10 @@ public class StatementVisitor extends VoidVisitorAdapter<VisitorContext> {
         super.visit(switchStmt, context);
         
         // Process selector (expression)
-        switchStmt.getSelector().ifPresent(selector -> {
+        Expression selector = switchStmt.getSelector();
+        if (selector != null) {
             selector.accept(new ExpressionVisitor(graph, context), context);
-        });
+        }
         
         // Process entries (cases)
         for (SwitchEntry entry : switchStmt.getEntries()) {
@@ -241,14 +250,16 @@ public class StatementVisitor extends VoidVisitorAdapter<VisitorContext> {
         super.visit(syncStmt, context);
         
         // Process expression (lock object)
-        syncStmt.getExpression().ifPresent(expression -> {
+        Expression expression = syncStmt.getExpression();
+        if (expression != null) {
             expression.accept(new ExpressionVisitor(graph, context), context);
-        });
+        }
         
         // Process body
-        syncStmt.getBody().ifPresent(body -> {
+        BlockStmt body = syncStmt.getBody();
+        if (body != null) {
             body.accept(this, context);
-        });
+        }
     }
     
     /**
@@ -272,9 +283,10 @@ public class StatementVisitor extends VoidVisitorAdapter<VisitorContext> {
         super.visit(throwStmt, context);
         
         // Process thrown expression
-        throwStmt.getExpression().ifPresent(expression -> {
+        Expression expression = throwStmt.getExpression();
+        if (expression != null) {
             expression.accept(new ExpressionVisitor(graph, context), context);
-        });
+        }
     }
     
     /**
@@ -312,9 +324,10 @@ public class StatementVisitor extends VoidVisitorAdapter<VisitorContext> {
         super.visit(exprStmt, context);
         
         // Process expression
-        exprStmt.getExpression().ifPresent(expression -> {
+        Expression expression = exprStmt.getExpression();
+        if (expression != null) {
             expression.accept(new ExpressionVisitor(graph, context), context);
-        });
+        }
     }
     
     /**

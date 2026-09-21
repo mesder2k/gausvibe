@@ -1,8 +1,10 @@
 package dk.gausdalfind.parser;
 
 import com.github.javaparser.ast.*;
+import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.expr.*;
 import com.github.javaparser.ast.stmt.*;
+import com.github.javaparser.ast.type.Type;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import dk.gausdalfind.model.*;
 
@@ -53,55 +55,6 @@ public class ExpressionVisitor extends VoidVisitorAdapter<VisitorContext> {
         this.graph = graph;
         this.nodeFactory = new NodeFactory(graph, context);
         this.edgeFactory = new EdgeFactory(graph, context);
-    }
-    
-    /**
-     * Generic visit method that handles all expression types.
-     */
-    @Override
-    public void visit(Expression expr, VisitorContext context) {
-        // This will be called for all expression types
-        // For now, just process the expression based on its type
-        
-        if (expr instanceof BinaryExpr) {
-            visit((BinaryExpr) expr, context);
-        } else if (expr instanceof UnaryExpr) {
-            visit((UnaryExpr) expr, context);
-        } else if (expr instanceof MethodCallExpr) {
-            visit((MethodCallExpr) expr, context);
-        } else if (expr instanceof FieldAccessExpr) {
-            visit((FieldAccessExpr) expr, context);
-        } else if (expr instanceof NameExpr) {
-            visit((NameExpr) expr, context);
-        } else if (expr instanceof LiteralExpr) {
-            visit((LiteralExpr) expr, context);
-        } else if (expr instanceof ObjectCreationExpr) {
-            visit((ObjectCreationExpr) expr, context);
-        } else if (expr instanceof ArrayAccessExpr) {
-            visit((ArrayAccessExpr) expr, context);
-        } else if (expr instanceof ArrayCreationExpr) {
-            visit((ArrayCreationExpr) expr, context);
-        } else if (expr instanceof ConditionalExpr) {
-            visit((ConditionalExpr) expr, context);
-        } else if (expr instanceof CastExpr) {
-            visit((CastExpr) expr, context);
-        } else if (expr instanceof InstanceOfExpr) {
-            visit((InstanceOfExpr) expr, context);
-        } else if (expr instanceof LambdaExpr) {
-            visit((LambdaExpr) expr, context);
-        } else if (expr instanceof MethodReferenceExpr) {
-            visit((MethodReferenceExpr) expr, context);
-        } else if (expr instanceof ThisExpr) {
-            visit((ThisExpr) expr, context);
-        } else if (expr instanceof SuperExpr) {
-            visit((SuperExpr) expr, context);
-        } else if (expr instanceof EnclosedExpr) {
-            visit((EnclosedExpr) expr, context);
-        } else if (expr instanceof ClassExpr) {
-            visit((ClassExpr) expr, context);
-        }
-        // Continue with super to ensure all child nodes are visited
-        super.visit(expr, context);
     }
     
     /**
@@ -168,9 +121,10 @@ public class ExpressionVisitor extends VoidVisitorAdapter<VisitorContext> {
         super.visit(fieldAccess, context);
         
         // Process scope/receiver
-        fieldAccess.getScope().ifPresent(scope -> {
+        Expression scope = fieldAccess.getScope();
+        if (scope != null) {
             scope.accept(this, context);
-        });
+        }
         
         // Get field name
         String fieldName = fieldAccess.getName().toString();
@@ -187,20 +141,6 @@ public class ExpressionVisitor extends VoidVisitorAdapter<VisitorContext> {
         String name = nameExpr.getName().toString();
         
         // Note: We'll resolve this to the actual variable in Phase 3 (Resolution)
-    }
-    
-    /**
-     * Visits a LiteralExpr.
-     */
-    @Override
-    public void visit(LiteralExpr literalExpr, VisitorContext context) {
-        super.visit(literalExpr, context);
-        
-        // Get the literal value
-        Object value = literalExpr.getValue();
-        String literalType = literalExpr.getClass().getSimpleName();
-        
-        // Note: We'll create a LiteralNode in future phases
     }
     
     /**
@@ -251,9 +191,10 @@ public class ExpressionVisitor extends VoidVisitorAdapter<VisitorContext> {
         super.visit(arrayCreation, context);
         
         // Process element type
-        arrayCreation.getElementType().ifPresent(type -> {
+        Type elementType = arrayCreation.getElementType();
+        if (elementType != null) {
             // Would process type
-        });
+        }
         
         // Process dimensions
         for (ArrayCreationLevel level : arrayCreation.getLevels()) {
@@ -337,9 +278,10 @@ public class ExpressionVisitor extends VoidVisitorAdapter<VisitorContext> {
         super.visit(methodRef, context);
         
         // Process scope
-        methodRef.getScope().ifPresent(scope -> {
+        Expression scope = methodRef.getScope();
+        if (scope != null) {
             scope.accept(this, context);
-        });
+        }
         
         // Get method name
         String methodName = methodRef.getIdentifier();
@@ -351,11 +293,7 @@ public class ExpressionVisitor extends VoidVisitorAdapter<VisitorContext> {
     @Override
     public void visit(ThisExpr thisExpr, VisitorContext context) {
         super.visit(thisExpr, context);
-        
-        // Process class scope if present
-        thisExpr.getClassExpr().ifPresent(cls -> {
-            cls.accept(this, context);
-        });
+        // Note: getClassExpr() not available in JavaParser 3.25.9
     }
     
     /**
@@ -364,11 +302,7 @@ public class ExpressionVisitor extends VoidVisitorAdapter<VisitorContext> {
     @Override
     public void visit(SuperExpr superExpr, VisitorContext context) {
         super.visit(superExpr, context);
-        
-        // Process class scope if present
-        superExpr.getClassExpr().ifPresent(cls -> {
-            cls.accept(this, context);
-        });
+        // Note: getClassExpr() not available in JavaParser 3.25.9
     }
     
     /**
