@@ -2,6 +2,7 @@ package dk.gausdalfind.parser;
 
 import com.github.javaparser.ast.*;
 import com.github.javaparser.ast.body.*;
+import com.github.javaparser.ast.expr.*;
 import com.github.javaparser.ast.stmt.*;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import dk.gausdalfind.model.*;
@@ -34,7 +35,7 @@ public class StatementVisitor extends VoidVisitorAdapter<VisitorContext> {
     private final EdgeFactory edgeFactory;
     
     // Stack to track block/parent nodes
-    private final Deque<Node> parentStack = new ArrayDeque<>();
+    private final Deque<dk.gausdalfind.model.Node> parentStack = new ArrayDeque<>();
     
     // Counter for statement indexing within blocks
     private final Deque<Integer> statementCounter = new ArrayDeque<>();

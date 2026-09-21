@@ -29,7 +29,7 @@ public class DeclarationVisitor extends VoidVisitorAdapter<VisitorContext> {
     private final EdgeFactory edgeFactory;
     
     // Stack to track parent nodes for establishing relationships
-    private final Deque<Node> parentStack = new ArrayDeque<>();
+    private final Deque<dk.gausdalfind.model.Node> parentStack = new ArrayDeque<>();
     
     /**
      * Creates a new declaration visitor.
@@ -143,7 +143,7 @@ public class DeclarationVisitor extends VoidVisitorAdapter<VisitorContext> {
         parentStack.push(methodNode);
         
         // Create HAS_METHOD edge from current class to this method
-        Node parent = getCurrentClass();
+        dk.gausdalfind.model.Node parent = getCurrentClass();
         if (parent instanceof ClassNode) {
             edgeFactory.createHasMethod(parent.getId(), methodNode.getId());
         }
@@ -183,7 +183,7 @@ public class DeclarationVisitor extends VoidVisitorAdapter<VisitorContext> {
             FieldNode fieldNode = (FieldNode) nodeFactory.createField(fieldDecl);
             if (fieldNode != null) {
                 // Create HAS_FIELD edge from current class to this field
-                Node parent = getCurrentClass();
+                dk.gausdalfind.model.Node parent = getCurrentClass();
                 if (parent instanceof ClassNode) {
                     edgeFactory.createHasField(parent.getId(), fieldNode.getId());
                 }
@@ -209,7 +209,7 @@ public class DeclarationVisitor extends VoidVisitorAdapter<VisitorContext> {
         super.visit(varDecl, context);
         
         // Check if this is a field declaration (already handled)
-        Node parent = varDecl.getParentNode().orElse(null);
+        com.github.javaparser.ast.Node parent = varDecl.getParentNode().orElse(null);
         if (parent instanceof FieldDeclaration) {
             return; // Already handled by FieldDeclaration visitor
         }
@@ -218,7 +218,7 @@ public class DeclarationVisitor extends VoidVisitorAdapter<VisitorContext> {
         VariableNode varNode = nodeFactory.createVariable(varDecl);
         if (varNode != null && context.inMethod()) {
             // Local variable is in a method
-            Node methodNode = getCurrentMethod();
+            dk.gausdalfind.model.Node methodNode = getCurrentMethod();
             if (methodNode != null) {
                 // Could create a DECLARES edge
             }
@@ -250,8 +250,8 @@ public class DeclarationVisitor extends VoidVisitorAdapter<VisitorContext> {
     /**
      * Returns the current class from the parent stack.
      */
-    private Node getCurrentClass() {
-        for (Node node : parentStack) {
+    private dk.gausdalfind.model.Node getCurrentClass() {
+        for (dk.gausdalfind.model.Node node : parentStack) {
             if (node instanceof ClassNode) {
                 return node;
             }
@@ -262,8 +262,8 @@ public class DeclarationVisitor extends VoidVisitorAdapter<VisitorContext> {
     /**
      * Returns the current method from the parent stack.
      */
-    private Node getCurrentMethod() {
-        for (Node node : parentStack) {
+    private dk.gausdalfind.model.Node getCurrentMethod() {
+        for (dk.gausdalfind.model.Node node : parentStack) {
             if (node instanceof MethodNode) {
                 return node;
             }

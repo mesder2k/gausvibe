@@ -41,7 +41,7 @@ public class AddFieldOperation implements Operation {
         return name;
     }
     
-    public String getType() {
+    public String getFieldType() {
         return type;
     }
     

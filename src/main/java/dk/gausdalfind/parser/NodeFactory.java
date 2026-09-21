@@ -24,7 +24,7 @@ public class NodeFactory {
     private final VisitorContext context;
     
     // Cache for already created nodes to avoid duplicates
-    private final Map<String, Node> nodeCache = new HashMap<>();
+    private final Map<String, dk.gausdalfind.model.Node> nodeCache = new HashMap<>();
     
     /**
      * Creates a new node factory.
@@ -49,7 +49,7 @@ public class NodeFactory {
      * @param astNode the JavaParser AST node
      * @return the created node, or null if the node type is not supported
      */
-    public Node create(Node astNode) {
+    public dk.gausdalfind.model.Node create(com.github.javaparser.ast.Node astNode) {
         if (astNode == null) {
             return null;
         }
@@ -212,7 +212,11 @@ public class NodeFactory {
             thrownExceptions.add(ref.toString());
         }
         
-        boolean isConstructor = methodDecl.isConstructor();
+        // Check if this is a constructor (name matches class name)
+        boolean isConstructor = context.getCurrentClass() != null && 
+            methodDecl.getName().toString().equals(
+                context.getCurrentClass().substring(context.getCurrentClass().lastIndexOf('.') + 1)
+            );
         boolean isStatic = modifiers.contains("static");
         
         Path file = context.getCurrentFile();
@@ -364,7 +368,7 @@ public class NodeFactory {
         String type = ""; // Type would come from parent declaration
         
         // Try to get type from parent
-        Node parent = varDecl.getParentNode().orElse(null);
+        com.github.javaparser.ast.Node parent = varDecl.getParentNode().orElse(null);
         if (parent instanceof FieldDeclaration) {
             type = ((FieldDeclaration) parent).getElementType().toString();
         } else if (parent instanceof VariableDeclarationExpr) {
@@ -410,7 +414,7 @@ public class NodeFactory {
      * Gets the position of a parameter within its method.
      */
     private int getParameterPosition(Parameter param) {
-        Node parent = param.getParentNode().orElse(null);
+        com.github.javaparser.ast.Node parent = param.getParentNode().orElse(null);
         if (parent instanceof MethodDeclaration) {
             MethodDeclaration method = (MethodDeclaration) parent;
             return method.getParameters().indexOf(param);
@@ -431,7 +435,7 @@ public class NodeFactory {
     /**
      * Returns a node from the cache if it exists.
      */
-    public Node getNode(String id) {
+    public dk.gausdalfind.model.Node getNode(String id) {
         return nodeCache.get(id);
     }
     

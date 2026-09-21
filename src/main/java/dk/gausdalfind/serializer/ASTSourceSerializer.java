@@ -2,7 +2,7 @@ package dk.gausdalfind.serializer;
 
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ast.CompilationUnit;
-import com.github.javaparser.ast.Node;
+import com.github.javaparser.ast.Modifier;
 import com.github.javaparser.ast.body.*;
 import com.github.javaparser.ast.expr.*;
 import com.github.javaparser.ast.stmt.*;
@@ -80,7 +80,7 @@ public class ASTSourceSerializer {
      */
     public String serializeFile(String filePath) {
         // Get all nodes in this file
-        List<Node> nodes = graph.getNodesInFile(Paths.get(filePath));
+        List<dk.gausdalfind.model.Node> nodes = graph.getNodesInFile(Paths.get(filePath));
         
         if (nodes.isEmpty()) {
             return null;
@@ -115,7 +115,7 @@ public class ASTSourceSerializer {
     /**
      * Builds a CompilationUnit from nodes in a file.
      */
-    private CompilationUnit buildCompilationUnit(String filePath, List<Node> nodes) {
+    private CompilationUnit buildCompilationUnit(String filePath, List<dk.gausdalfind.model.Node> nodes) {
         CompilationUnit cu = new CompilationUnit();
         
         // Set package
@@ -128,7 +128,7 @@ public class ASTSourceSerializer {
         // For now, we'll skip imports
         
         // Add types (classes, interfaces, enums)
-        for (Node node : nodes) {
+        for (dk.gausdalfind.model.Node node : nodes) {
             if (node instanceof ClassNode) {
                 cu.addType(buildClassBody((ClassNode) node, nodes));
             } else if (node instanceof PackageNode) {
@@ -142,8 +142,8 @@ public class ASTSourceSerializer {
     /**
      * Gets the package node for a file.
      */
-    private PackageNode getPackageNode(String filePath, List<Node> nodes) {
-        for (Node node : nodes) {
+    private PackageNode getPackageNode(String filePath, List<dk.gausdalfind.model.Node> nodes) {
+        for (dk.gausdalfind.model.Node node : nodes) {
             if (node instanceof PackageNode) {
                 return (PackageNode) node;
             }
@@ -154,16 +154,18 @@ public class ASTSourceSerializer {
     /**
      * Builds a ClassOrInterfaceDeclaration from a ClassNode.
      */
-    private ClassOrInterfaceDeclaration buildClassBody(ClassNode classNode, List<Node> allNodes) {
+    private ClassOrInterfaceDeclaration buildClassBody(ClassNode classNode, List<dk.gausdalfind.model.Node> allNodes) {
         ClassOrInterfaceDeclaration classDecl = new ClassOrInterfaceDeclaration();
         
         // Set name
         classDecl.setName(classNode.getName());
         
         // Set modifiers
-        for (String modifier : classNode.getModifiers()) {
-            classDecl.addModifier(modifier);
-        }
+        List<Modifier> modifiers = toModifiers(classNode.getModifiers());
+        Modifier.Keyword[] keywords = modifiers.stream()
+            .map(m -> m.getKeyword())
+            .toArray(Modifier.Keyword[]::new);
+        classDecl.addModifier(keywords);
         
         // Set if interface
         if (classNode.isInterface()) {
@@ -181,7 +183,7 @@ public class ASTSourceSerializer {
         }
         
         // Add fields
-        for (Node node : allNodes) {
+        for (dk.gausdalfind.model.Node node : allNodes) {
             if (node instanceof FieldNode) {
                 FieldNode field = (FieldNode) node;
                 if (classNode.getQualifiedName().equals(field.getClassName())) {
@@ -191,7 +193,7 @@ public class ASTSourceSerializer {
         }
         
         // Add methods
-        for (Node node : allNodes) {
+        for (dk.gausdalfind.model.Node node : allNodes) {
             if (node instanceof MethodNode) {
                 MethodNode method = (MethodNode) node;
                 if (classNode.getQualifiedName().equals(method.getClassName())) {
@@ -201,7 +203,7 @@ public class ASTSourceSerializer {
         }
         
         // Add constructors
-        for (Node node : allNodes) {
+        for (dk.gausdalfind.model.Node node : allNodes) {
             if (node instanceof MethodNode) {
                 MethodNode method = (MethodNode) node;
                 if (method.isConstructor() && classNode.getQualifiedName().equals(method.getClassName())) {
@@ -220,9 +222,11 @@ public class ASTSourceSerializer {
         FieldDeclaration fieldDecl = new FieldDeclaration();
         
         // Set modifiers
-        for (String modifier : fieldNode.getModifiers()) {
-            fieldDecl.addModifier(modifier);
-        }
+        List<Modifier> modifiers = toModifiers(fieldNode.getModifiers());
+        Modifier.Keyword[] keywords = modifiers.stream()
+            .map(m -> m.getKeyword())
+            .toArray(Modifier.Keyword[]::new);
+        fieldDecl.addModifier(keywords);
         
         // Set variable
         VariableDeclarator varDecl = new VariableDeclarator();
@@ -241,22 +245,24 @@ public class ASTSourceSerializer {
     /**
      * Builds a MethodDeclaration from a MethodNode.
      */
-    private MethodDeclaration buildMethodDeclaration(MethodNode methodNode, List<Node> allNodes) {
+    private MethodDeclaration buildMethodDeclaration(MethodNode methodNode, List<dk.gausdalfind.model.Node> allNodes) {
         MethodDeclaration methodDecl = new MethodDeclaration();
         
         // Set name
         methodDecl.setName(methodNode.getName());
         
         // Set modifiers
-        for (String modifier : methodNode.getModifiers()) {
-            methodDecl.addModifier(modifier);
-        }
+        List<Modifier> modifiers = toModifiers(methodNode.getModifiers());
+        Modifier.Keyword[] keywords = modifiers.stream()
+            .map(m -> m.getKeyword())
+            .toArray(Modifier.Keyword[]::new);
+        methodDecl.addModifier(keywords);
         
         // Set return type
         methodDecl.setType(parseType(methodNode.getReturnType()));
         
         // Set parameters
-        for (Node paramNode : allNodes) {
+        for (dk.gausdalfind.model.Node paramNode : allNodes) {
             if (paramNode instanceof ParameterNode) {
                 ParameterNode param = (ParameterNode) paramNode;
                 if (methodNode.getQualifiedName().equals(param.getBelongingMethod())) {
@@ -275,7 +281,7 @@ public class ASTSourceSerializer {
         
         // Set thrown exceptions
         for (String exception : methodNode.getThrownExceptions()) {
-            methodDecl.addThrownException(parseType(exception));
+            methodDecl.addThrownException(parseExceptionType(exception));
         }
         
         return methodDecl;
@@ -284,22 +290,29 @@ public class ASTSourceSerializer {
     /**
      * Builds a ConstructorDeclaration from a MethodNode.
      */
-    private ConstructorDeclaration buildConstructorDeclaration(MethodNode methodNode, List<Node> allNodes) {
+    private ConstructorDeclaration buildConstructorDeclaration(MethodNode methodNode, List<dk.gausdalfind.model.Node> allNodes) {
         ConstructorDeclaration constructorDecl = new ConstructorDeclaration();
         
         // Set name
         constructorDecl.setName(methodNode.getName());
         
-        // Set modifiers
+        // Set modifiers (filter out invalid constructor modifiers)
+        List<Modifier.Keyword> validKeywords = new ArrayList<>();
         for (String modifier : methodNode.getModifiers()) {
             if (!"static".equals(modifier) && !"final".equals(modifier) && 
                 !"abstract".equals(modifier) && !"native".equals(modifier)) {
-                constructorDecl.addModifier(modifier);
+                Modifier.Keyword keyword = toModifierKeyword(modifier);
+                if (keyword != null) {
+                    validKeywords.add(keyword);
+                }
             }
+        }
+        if (!validKeywords.isEmpty()) {
+            constructorDecl.addModifier(validKeywords.toArray(new Modifier.Keyword[0]));
         }
         
         // Set parameters
-        for (Node paramNode : allNodes) {
+        for (dk.gausdalfind.model.Node paramNode : allNodes) {
             if (paramNode instanceof ParameterNode) {
                 ParameterNode param = (ParameterNode) paramNode;
                 if (methodNode.getQualifiedName().equals(param.getBelongingMethod())) {
@@ -314,7 +327,7 @@ public class ASTSourceSerializer {
         
         // Set thrown exceptions
         for (String exception : methodNode.getThrownExceptions()) {
-            constructorDecl.addThrownException(parseType(exception));
+            constructorDecl.addThrownException(parseExceptionType(exception));
         }
         
         return constructorDecl;
@@ -329,9 +342,11 @@ public class ASTSourceSerializer {
         param.setType(parseType(paramNode.getDataType()));
         
         // Set modifiers
-        for (String modifier : paramNode.getModifiers()) {
-            param.addModifier(modifier);
-        }
+        List<Modifier> modifiers = toModifiers(paramNode.getModifiers());
+        Modifier.Keyword[] keywords = modifiers.stream()
+            .map(m -> m.getKeyword())
+            .toArray(Modifier.Keyword[]::new);
+        param.addModifier(keywords);
         
         return param;
     }
@@ -339,7 +354,7 @@ public class ASTSourceSerializer {
     /**
      * Builds a BlockStmt from method body.
      */
-    private BlockStmt buildMethodBody(MethodNode methodNode, List<Node> allNodes) {
+    private BlockStmt buildMethodBody(MethodNode methodNode, List<dk.gausdalfind.model.Node> allNodes) {
         BlockStmt block = new BlockStmt();
         
         // Find statements for this method
@@ -396,6 +411,16 @@ public class ASTSourceSerializer {
     }
     
     /**
+     * Parses an exception type string into a JavaParser ReferenceType.
+     */
+    private ReferenceType parseExceptionType(String typeName) {
+        if (typeName == null || typeName.isEmpty()) {
+            return new ClassOrInterfaceType("Throwable");
+        }
+        return new ClassOrInterfaceType(typeName);
+    }
+    
+    /**
      * Gets all files that have nodes in the graph.
      */
     private Set<String> getFilesInGraph() {
@@ -436,5 +461,36 @@ public class ASTSourceSerializer {
                 Files.writeString(fullPath, source);
             }
         }
+    }
+    
+    /**
+     * Converts a string modifier to JavaParser Modifier.Keyword.
+     */
+    private Modifier.Keyword toModifierKeyword(String modifier) {
+        if (modifier == null || modifier.isEmpty()) {
+            return null;
+        }
+        try {
+            return Modifier.Keyword.valueOf(modifier.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            System.err.println("Unknown modifier: " + modifier);
+            return null;
+        }
+    }
+    
+    /**
+     * Converts a list of string modifiers to JavaParser modifiers.
+     */
+    private List<Modifier> toModifiers(Set<String> modifiers) {
+        List<Modifier> result = new ArrayList<>();
+        if (modifiers != null) {
+            for (String modifier : modifiers) {
+                Modifier.Keyword keyword = toModifierKeyword(modifier);
+                if (keyword != null) {
+                    result.add(new Modifier(keyword));
+                }
+            }
+        }
+        return result;
     }
 }

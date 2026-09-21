@@ -5,7 +5,7 @@ import dk.gausdalfind.model.Node;
 import dk.gausdalfind.model.Edge;
 import dk.gausdalfind.model.declaration.*;
 import dk.gausdalfind.model.EdgeTypes;
-import dk.gausdalfind.parser.NodeIdGenerator;
+import dk.gausdalfind.model.NodeIdGenerator;
 
 import java.util.*;
 
@@ -191,7 +191,7 @@ public class ASTEditor {
             id,
             op.getName(),
             qualifiedName,
-            op.getType(),
+            op.getFieldType(),
             op.getModifiers(),
             op.isStatic(),
             op.isFinal(),
