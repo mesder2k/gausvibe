@@ -12,4 +12,4 @@ if [ ! -f /tmp/classpath.txt ]; then
 fi
 
 # Run the execution script
-bash "$PROJECT_DIR/BAKEOFF_EXECUTION.md"
+bash "$PROJECT_DIR/bakeoff.sh"
