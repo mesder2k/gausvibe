@@ -221,19 +221,25 @@ public class TextSearchIndex {
         
         // Add common node attributes
         texts.add(node.getType());
-        texts.add(node.getName());
-        texts.add(node.getQualifiedName());
         
         // Add file path as string
         if (node.getFile() != null) {
             texts.add(node.getFile().toString());
         }
         
-        // Add package name
-        texts.add(node.getPackageName());
-        
-        // Add description if available
-        texts.add(node.getDescription());
+        // Add declaration-specific attributes if available
+        if (node instanceof dk.gausdalfind.model.declaration.DeclarationNode) {
+            dk.gausdalfind.model.declaration.DeclarationNode declNode = 
+                (dk.gausdalfind.model.declaration.DeclarationNode) node;
+            texts.add(declNode.getName());
+            texts.add(declNode.getQualifiedName());
+            
+            // Package name can be derived from qualified name
+            String qn = declNode.getQualifiedName();
+            if (qn != null && qn.contains(".")) {
+                texts.add(qn.substring(0, qn.lastIndexOf('.')));
+            }
+        }
         
         return texts;
     }

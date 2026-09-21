@@ -1,10 +1,6 @@
 package dk.gausdalfind.parser;
 
 import com.github.javaparser.StaticJavaParser;
-import com.github.javaparser.symbolsolver.JavaSymbolSolver;
-import com.github.javaparser.symbolsolver.resolution.typesolvers.CombinedTypeSolver;
-import com.github.javaparser.symbolsolver.resolution.typesolvers.JavaParserTypeSolver;
-import com.github.javaparser.symbolsolver.resolution.typesolvers.ReflectionTypeSolver;
 
 import java.nio.file.Path;
 
@@ -37,23 +33,10 @@ public final class JavaParserConfig {
         
         projectRoot = root;
         
-        // Create a type solver that can resolve symbols
-        CombinedTypeSolver typeSolver = new CombinedTypeSolver();
-        
-        // Add reflection type solver for JDK classes
-        typeSolver.add(new ReflectionTypeSolver(true, true));
-        
-        // Add JavaParser type solver for parsing Java files in the project
-        if (root != null) {
-            typeSolver.add(new JavaParserTypeSolver(root));
-        }
-        
-        // Create symbol solver with the type solver
-        JavaSymbolSolver symbolSolver = new JavaSymbolSolver(typeSolver);
-        
-        // Configure the parser to use the symbol solver
+        // Note: Symbol resolution is disabled for now due to API compatibility issues
+        // with JavaParser 3.25.9. Symbol solver configuration needs to be updated.
+        // For basic parsing, we don't need symbol resolution.
         StaticJavaParser.getConfiguration()
-            .setSymbolSolver(symbolSolver)
             .setAttributeComments(true)
             .setStoreTokens(true);
         
@@ -82,7 +65,6 @@ public final class JavaParserConfig {
         configured = false;
         projectRoot = null;
         StaticJavaParser.getConfiguration()
-            .setSymbolSolver(null)
             .setAttributeComments(false)
             .setStoreTokens(false);
     }

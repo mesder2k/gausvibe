@@ -57,6 +57,11 @@ public class SymbolTable {
     /** Maps variable name to VariableNode (local to current method) */
     private final Map<String, VariableNode> variablesByName = new ConcurrentHashMap<>();
     
+    // ==================== Parameter Symbols ====================
+    
+    /** Maps parameter qualified name to ParameterNode */
+    private final Map<String, ParameterNode> parametersByName = new ConcurrentHashMap<>();
+    
     // ==================== File Information ====================
     
     /** Maps file path to its package name */
@@ -184,6 +189,19 @@ public class SymbolTable {
         
         String name = variable.getName();
         variablesByName.put(name, variable);
+    }
+    
+    /**
+     * Registers a parameter in the symbol table.
+     */
+    public void register(ParameterNode parameter) {
+        if (parameter == null) {
+            return;
+        }
+        
+        // Parameters are indexed by their qualified name (method FQN + parameter name)
+        String qualifiedName = parameter.getQualifiedName();
+        parametersByName.put(qualifiedName, parameter);
     }
     
     /**
@@ -670,9 +688,9 @@ public class SymbolTable {
             overridesByMethod.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
                 .addAll(entry.getValue());
         }
-        for (Map.Entry<String, List<MethodNode>> entry : other.overriddenByMethod.entrySet()) {
-            overriddenByMethod.computeIfAbsent(entry.getKey(), k -> new ArrayList<>())
-                .addAll(entry.getValue());
+        for (Map.Entry<String, MethodNode> entry : other.overriddenByMethod.entrySet()) {
+            // overriddenByMethod stores single MethodNode, not a list
+            overriddenByMethod.put(entry.getKey(), entry.getValue());
         }
     }
 }

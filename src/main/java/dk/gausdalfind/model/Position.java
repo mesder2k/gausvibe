@@ -2,6 +2,9 @@ package dk.gausdalfind.model;
 
 import java.util.Objects;
 
+// Note: We can't import com.github.javaparser.Position because it conflicts with this class name
+// Use fully qualified names in the fromJavaParser method
+
 /**
  * Represents a position in source code with line and column numbers.
  * Line and column are 1-indexed.
@@ -39,10 +42,10 @@ public record Position(int line, int column) {
      * Creates a Position from JavaParser's Position.
      * Requires JavaParser to be on the classpath.
      */
-    // public static Position fromJavaParser(com.github.javaparser.Position pos) {
-    //     if (pos == null) {
-    //         return null;
-    //     }
-    //     return new Position(pos.line, pos.column);
-    // }
+    public static dk.gausdalfind.model.Position fromJavaParser(com.github.javaparser.Position pos) {
+        if (pos == null) {
+            return null;
+        }
+        return new dk.gausdalfind.model.Position(pos.line, pos.column);
+    }
 }

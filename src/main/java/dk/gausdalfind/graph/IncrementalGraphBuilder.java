@@ -236,12 +236,12 @@ public class IncrementalGraphBuilder {
         // Create visitor context for this file
         VisitorContext ctx = new VisitorContext(
             file,
+            graph,
             null,  // package - will be set by PackageDeclarationVisitor
             null,  // current class
             null,  // current method
-            symbolTable,
             0,
-            new Scope(null)
+            new VisitorContext.Scope(null)
         );
         
         // Track nodes created from this file
@@ -260,7 +260,7 @@ public class IncrementalGraphBuilder {
         new ExpressionVisitor(graph, ctx).visit(cu, ctx);
         
         // Capture all nodes added from this file
-        List<Node> allNodes = graph.getAllNodes();
+        List<Node> allNodes = new ArrayList<>(graph.getAllNodes());
         fileNodes.addAll(allNodes.subList(nodeCountBefore, allNodes.size()));
         
         nodesByFile.put(file, fileNodes);
@@ -280,7 +280,7 @@ public class IncrementalGraphBuilder {
                 ClassNode cls = (ClassNode) node;
                 if (cls.hasSuperclass()) {
                     String superclassFqn = cls.getSuperclass();
-                    symbolTable.getClassByQualifiedName(superclassFqn)
+                    graph.getIndexes().getClassByQualifiedName(superclassFqn)
                         .ifPresent(parent -> {
                             graph.addEdge(new Edge(
                                 cls.getId(), 
@@ -292,7 +292,7 @@ public class IncrementalGraphBuilder {
                 
                 // Add IMPLEMENTS edges
                 for (String iface : cls.getInterfaces()) {
-                    symbolTable.getClassByQualifiedName(iface)
+                    graph.getIndexes().getClassByQualifiedName(iface)
                         .ifPresent(interfaceNode -> {
                             graph.addEdge(new Edge(
                                 cls.getId(), 

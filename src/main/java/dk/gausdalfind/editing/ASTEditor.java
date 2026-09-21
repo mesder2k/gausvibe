@@ -114,7 +114,6 @@ public class ASTEditor {
             op.getModifiers(),
             op.isConstructor(),
             op.isStatic(),
-            op.isAbstract(),
             op.getThrownExceptions(),
             targetClass.getFile(),  // file path from parent class
             null, // start position
@@ -124,7 +123,7 @@ public class ASTEditor {
     
     private OperationResult applyRemoveMethod(RemoveMethodOperation op) {
         // Find the method by qualified name
-        Optional<MethodNode> method = graph.getIndexes().getMethodByQualifiedName(op.getMethodQualifiedName());
+        Optional<MethodNode> method = findMethodByQualifiedName(graph, op.getMethodQualifiedName());
         if (method.isEmpty()) {
             return OperationResult.failure("Method not found: " + op.getMethodQualifiedName());
         }
@@ -144,7 +143,7 @@ public class ASTEditor {
     
     private OperationResult applyReplaceMethodBody(ReplaceMethodBodyOperation op) {
         // Find the method
-        Optional<MethodNode> method = graph.getIndexes().getMethodByQualifiedName(op.getMethodQualifiedName());
+        Optional<MethodNode> method = findMethodByQualifiedName(graph, op.getMethodQualifiedName());
         if (method.isEmpty()) {
             return OperationResult.failure("Method not found: " + op.getMethodQualifiedName());
         }
@@ -248,5 +247,14 @@ public class ASTEditor {
      */
     public Graph getGraph() {
         return graph;
+    }
+    
+    /**
+     * Helper to find a method by qualified name.
+     */
+    private Optional<MethodNode> findMethodByQualifiedName(Graph graph, String qualifiedName) {
+        return graph.getIndexes().getAllMethods().stream()
+            .filter(m -> qualifiedName.equals(m.getQualifiedName()))
+            .findFirst();
     }
 }

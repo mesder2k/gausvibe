@@ -1,6 +1,8 @@
 package dk.gausdalfind.serializer;
 
 import com.google.gson.*;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
 import dk.gausdalfind.model.*;
 import dk.gausdalfind.model.declaration.*;
@@ -644,7 +646,7 @@ public class JsonSerializer {
     /**
      * Type hierarchy adapter for Node.
      */
-    private static class NodeTypeHierarchyAdapter implements JsonSerializer<Node>, JsonDeserializer<Node> {
+    private static class NodeTypeHierarchyAdapter implements com.google.gson.JsonSerializer<Node>, com.google.gson.JsonDeserializer<Node> {
         @Override
         public JsonElement serialize(Node src, java.lang.reflect.Type typeOfSrc, JsonSerializationContext context) {
             JsonObject obj = new JsonObject();

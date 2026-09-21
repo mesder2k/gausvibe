@@ -1,6 +1,5 @@
 package dk.gausdalfind.symbols;
 
-import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.body.*;
 import com.github.javaparser.ast.expr.*;
 import com.github.javaparser.ast.stmt.*;
@@ -444,8 +443,9 @@ public class SymbolResolver {
         // Register imports and package
         for (Node node : nodesInFile) {
             if (node instanceof PackageNode) {
-                symbolTable.register((PackageNode) node);
-                symbolTable.registerPackage(file, node.getName());
+                PackageNode pkgNode = (PackageNode) node;
+                symbolTable.register(pkgNode);
+                symbolTable.registerPackage(file, pkgNode.getName());
             }
         }
         

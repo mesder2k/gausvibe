@@ -270,7 +270,7 @@ public class GausVibeBuilder {
     /**
      * Processes a type declaration (class, interface, enum).
      */
-    private void processTypeDeclaration(com.github.javaparser.ast.TypeDeclaration<?> typeDecl, VisitorContext context) {
+    private void processTypeDeclaration(com.github.javaparser.ast.body.TypeDeclaration<?> typeDecl, VisitorContext context) {
         if (typeDecl instanceof com.github.javaparser.ast.body.ClassOrInterfaceDeclaration) {
             processClassOrInterface((com.github.javaparser.ast.body.ClassOrInterfaceDeclaration) typeDecl, context);
         } else if (typeDecl instanceof com.github.javaparser.ast.body.EnumDeclaration) {
@@ -335,7 +335,7 @@ public class GausVibeBuilder {
                 );
             }
         } else if (member instanceof com.github.javaparser.ast.body.FieldDeclaration) {
-            FieldDeclaration fieldDecl = (com.github.javaparser.ast.body.FieldDeclaration) member;
+            com.github.javaparser.ast.body.FieldDeclaration fieldDecl = (com.github.javaparser.ast.body.FieldDeclaration) member;
             // FieldDeclaration can have multiple variables
             for (var var : fieldDecl.getVariables()) {
                 FieldNode fieldNode = nodeFactory.createField(fieldDecl);
@@ -446,10 +446,8 @@ public class GausVibeBuilder {
             });
             
             // Process enum constant body (methods)
-            constant.getClassBody().ifPresent(body -> {
-                for (var member : body.getMembers()) {
-                    processClassMember(member, context, nodeFactory, edgeFactory, enumNode);
-                }
+            constant.getClassBody().forEach(member -> {
+                processClassMember(member, context, nodeFactory, edgeFactory, enumNode);
             });
         }
     }

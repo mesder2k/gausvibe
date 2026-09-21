@@ -123,6 +123,25 @@ public class GraphQueryEngine implements JavaGraphQuery {
             .collect(Collectors.toList());
     }
     
+    /**
+     * Finds the class node for a given method by extracting the class name from the method's qualified name.
+     */
+    private Optional<ClassNode> findClassForMethod(MethodNode method) {
+        if (method == null || method.getQualifiedName() == null) {
+            return Optional.empty();
+        }
+        
+        // Method qualified name is typically package.ClassName.methodName
+        String qn = method.getQualifiedName();
+        int lastDot = qn.lastIndexOf('.');
+        if (lastDot < 0) {
+            return Optional.empty();
+        }
+        
+        String classFqn = qn.substring(0, lastDot);
+        return indexes.getClassByQualifiedName(classFqn);
+    }
+    
     @Override
     public Optional<ClassNode> getSuperclass(ClassNode clazz) {
         if (clazz == null || !clazz.hasSuperclass()) {
@@ -219,8 +238,14 @@ public class GraphQueryEngine implements JavaGraphQuery {
             return Optional.empty();
         }
         
+        // Find the class this method belongs to
+        Optional<ClassNode> classNode = findClassForMethod(method);
+        if (classNode.isEmpty()) {
+            return Optional.empty();
+        }
+        
         // Find methods with the same signature in superclasses
-        Optional<ClassNode> superclass = getSuperclass(method.getClassNode());
+        Optional<ClassNode> superclass = getSuperclass(classNode.get());
         if (superclass.isEmpty()) {
             return Optional.empty();
         }

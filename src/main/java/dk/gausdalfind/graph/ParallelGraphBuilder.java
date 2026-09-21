@@ -194,12 +194,12 @@ public class ParallelGraphBuilder {
         // Create visitor context for this file
         VisitorContext ctx = new VisitorContext(
             file,
+            graph,
             null,  // package - will be set by PackageDeclarationVisitor
             null,  // current class
             null,  // current method
-            symbolTable,
             0,
-            new Scope(null)
+            new VisitorContext.Scope(null)
         );
         
         // Process declaration visitor
@@ -222,7 +222,7 @@ public class ParallelGraphBuilder {
                 ClassNode cls = (ClassNode) node;
                 if (cls.hasSuperclass()) {
                     String superclassFqn = cls.getSuperclass();
-                    symbolTable.getClassByQualifiedName(superclassFqn)
+                    graph.getIndexes().getClassByQualifiedName(superclassFqn)
                         .ifPresent(parent -> {
                             graph.addEdge(new Edge(
                                 cls.getId(), 
@@ -234,7 +234,7 @@ public class ParallelGraphBuilder {
                 
                 // Add IMPLEMENTS edges
                 for (String iface : cls.getInterfaces()) {
-                    symbolTable.getClassByQualifiedName(iface)
+                    graph.getIndexes().getClassByQualifiedName(iface)
                         .ifPresent(interfaceNode -> {
                             graph.addEdge(new Edge(
                                 cls.getId(), 

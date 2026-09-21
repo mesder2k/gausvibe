@@ -110,8 +110,7 @@ public class EditCommand {
         
         // Serialize to JSON
         try {
-            JsonSerializer serializer = new JsonSerializer();
-            return serializer.toJson(output);
+            return new com.google.gson.Gson().toJson(output);
         } catch (Exception e) {
             return "Error formatting JSON: " + e.getMessage();
         }
