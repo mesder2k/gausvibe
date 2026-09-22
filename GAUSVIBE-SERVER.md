@@ -8,13 +8,13 @@ The graph is built **automatically** on startup - no manual build step needed.
 
 ```bash
 # Install dependencies (one-time)
-pip install flask flask-cors
+pip install fastapi uvicorn
 
 # Start server, pointing to a directory to index
-python gausvibe_server.py --project ../bakeoff1 --port 8080
+python3 gausvibe_server.py --project ../bakeoff1 --port 8080
 
 # Or for GausVibe itself
-python gausvibe_server.py --project . --port 8080
+python3 gausvibe_server.py --project . --port 8080
 ```
 
 ### 2. Use cURL immediately
@@ -23,6 +23,9 @@ The server is ready to answer queries as soon as it starts:
 ```bash
 # List all classes
 curl http://localhost:8080/classes
+
+# Browse interactive docs
+open http://localhost:8080/docs
 
 # Get Calculator implementations
 curl http://localhost:8080/classes/com.example.calculator.Calculator/implementations
@@ -61,13 +64,13 @@ The GausVibe REST Server provides a simple HTTP interface to query Java code gra
 ### Start server with your projects
 ```bash
 # Calculator example
-python gausvibe_server.py --project ../bakeoff1 --port 8080
+python3 gausvibe_server.py --project ../bakeoff1 --port 8080
 
 # GausVibe itself
-python gausvibe_server.py --project . --port 8081
+python3 gausvibe_server.py --project . --port 8081
 
 # Another project
-python gausvibe_server.py --project /path/to/my/java/project --port 8082
+python3 gausvibe_server.py --project /path/to/my/java/project --port 8082
 ```
 
 ### Query examples
@@ -283,21 +286,30 @@ Building graph for: /Users/magnusfind/Documents/find-shadow-model/bakeoff1
 Graph built: 15 nodes, 25 edges
 
 ============================================================
-GausVibe Server Running
+GausVibe Server (FastAPI) Running
 Project:  /Users/magnusfind/Documents/find-shadow-model/bakeoff1
 Graph:    /Users/magnusfind/.vibe/cache/gausvibe/graph_bakeoff1.json
 Nodes:    15
 Edges:    25
 URL:      http://0.0.0.0:8080
+Docs:     http://0.0.0.0:8080/docs
 ============================================================
 ```
 
 ## Dependencies
 
 - Python 3.7+
-- Flask: `pip install flask flask-cors`
+- FastAPI: `pip install fastapi uvicorn`
 - GausVibe: Already compiled in the project
 - Maven: For classpath resolution
+
+## Features
+
+- **FastAPI** - Modern, fast, async-ready
+- **Auto-generated docs** at `/docs` and `/redoc`
+- **Type hints** for better IDE support
+- **CORS enabled** for browser access
+- **Automatic graph building** on startup
 
 ## Performance
 
