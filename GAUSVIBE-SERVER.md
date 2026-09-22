@@ -1,31 +1,39 @@
-# GausVibe REST Server
+# GausVibe Pure Java REST Server
+
+**Native Java implementation - Zero external dependencies (uses JDK HttpServer)**
 
 ## Quick Start
 
-### 1. Start the Server
-
-The graph is built **automatically** on startup - no manual build step needed.
-
+### 1. Compile
 ```bash
-# Install dependencies (one-time)
-pip install fastapi uvicorn
-
-# Start server, pointing to a directory to index
-python3 gausvibe_server.py --project ../bakeoff1 --port 8080
-
-# Or for GausVibe itself
-python3 gausvibe_server.py --project . --port 8080
+mvn clean compile
 ```
 
-### 2. Use cURL immediately
+### 2. Start the Server
 
-The server is ready to answer queries as soon as it starts:
+```bash
+# Get classpath
+CP=$(mvn -q dependency:build-classpath -Dmdep.outputFile=/dev/stdout)
+
+# Start server with project to index
+java -cp "target/classes:$CP" \
+  dk.gausdalfind.server.GausVibeServer \
+  --project ../bakeoff1 \
+  --port 8080
+
+# Or for GausVibe itself
+java -cp "target/classes:$CP" \
+  dk.gausdalfind.server.GausVibeServer \
+  --project . \
+  --port 8080
+```
+
+### 3. Use cURL immediately
+
+The graph builds **automatically** on startup:
 ```bash
 # List all classes
 curl http://localhost:8080/classes
-
-# Browse interactive docs
-open http://localhost:8080/docs
 
 # Get Calculator implementations
 curl http://localhost:8080/classes/com.example.calculator.Calculator/implementations
@@ -34,48 +42,46 @@ curl http://localhost:8080/classes/com.example.calculator.Calculator/implementat
 curl http://localhost:8080/search?q=add
 
 # Raw query
-curl "http://localhost:8080/graph/query?q=class:all"
+curl "http://localhost:8080/query?q=class:all"
 
 # Get statistics
 curl http://localhost:8080/graph/stats
 ```
 
-## Overview
+## Why Pure Java?
 
-The GausVibe REST Server provides a simple HTTP interface to query Java code graphs. **The graph is built automatically when the server starts** - callers don't need to worry about graph construction.
+| Approach | Pros | Cons |
+|----------|------|------|
+| **Pure Java (this)** | ✅ Zero deps, ✅ Native, ✅ Fast, ✅ Single process | ⚠️ JDK HttpServer is basic |
+| Python wrapper | ⚠️ Extra dep, ⚠️ Process spawning, ⚠️ Slower | ✅ FastAPI is nice |
 
-### Key Design
-- **Start server** with `--project` pointing to Java source directory
-- **Graph builds on startup** - server waits until graph is ready
-- **All endpoints available immediately** after startup
-- **No manual build step** required from API consumers
+**Winner: Pure Java** - It's a Java project, so the server should be Java.
 
 ## Command Line Arguments
 
 ```
 --project PATH   (REQUIRED)  Java project directory to index
 --port NUM      (default: 8080) Port to listen on
---host STR      (default: 0.0.0.0) Host to bind to
---graph-file PATH           Custom graph file location (default: ~/.vibe/cache/gausvibe/graph_<project>.json)
 ```
 
 ## Examples
 
-### Start server with your projects
+### Start server with different projects
 ```bash
-# Calculator example
-python3 gausvibe_server.py --project ../bakeoff1 --port 8080
+# Calculator example on port 8080
+CP=$(mvn -q dependency:build-classpath -Dmdep.outputFile=/dev/stdout)
+java -cp "target/classes:$CP" dk.gausdalfind.server.GausVibeServer --project ../bakeoff1 --port 8080 &
 
-# GausVibe itself
-python3 gausvibe_server.py --project . --port 8081
-
-# Another project
-python3 gausvibe_server.py --project /path/to/my/java/project --port 8082
+# GausVibe itself on port 8081
+java -cp "target/classes:$CP" dk.gausdalfind.server.GausVibeServer --project . --port 8081 &
 ```
 
 ### Query examples
 
 ```bash
+# Server info
+curl http://localhost:8080/
+
 # List all classes
 curl http://localhost:8080/classes
 
@@ -101,15 +107,12 @@ curl http://localhost:8080/packages
 curl http://localhost:8080/search?q=add
 
 # Execute arbitrary GausVibe query
-curl "http://localhost:8080/graph/query?q=class:all"
-curl "http://localhost:8080/graph/query?q=method:name:add"
-curl "http://localhost:8080/graph/query?q=class:subclasses:java.lang.Object"
+curl "http://localhost:8080/query?q=class:all"
+curl "http://localhost:8080/query?q=method:name:add"
+curl "http://localhost:8080/query?q=class:subclasses:java.lang.Object"
 
 # Get graph statistics
-curl http://localhost:8080/graph/stats
-
-# Get server info
-curl http://localhost:8080/
+curl http://localhost:8080/stats
 ```
 
 ## Response Formats
@@ -121,25 +124,27 @@ All endpoints return JSON.
 {
   "name": "GausVibe Server",
   "version": "1.0.0",
-  "current_graph": {
+  "graph": {
     "project": "/path/to/project",
-    "file": "/path/to/graph.json",
-    "nodes": 150,
-    "edges": 300,
-    "built_at": 1699999999.999
+    "nodes": 26,
+    "edges": 21
   },
-  "endpoints": { ... }
+  "endpoints": {
+    "GET /": "Server info",
+    "GET /classes": "List all classes",
+    "..."
+  }
 }
 ```
 
 ### GET /classes
 ```json
 {
-  "count": 5,
+  "count": 3,
   "classes": [
     "com.example.calculator.Calculator",
-    "com.example.calculator.StandardCalculator",
-    "com.example.calculator.Main"
+    "com.example.calculator.Main",
+    "com.example.calculator.StandardCalculator"
   ]
 }
 ```
@@ -154,8 +159,7 @@ All endpoints return JSON.
   "superclass": "java.lang.Object",
   "interfaces": ["com.example.calculator.Calculator"],
   "method_count": 10,
-  "field_count": 3,
-  "raw": "Class: com.example.calculator.StandardCalculator..."
+  "field_count": 3
 }
 ```
 
@@ -177,39 +181,29 @@ All endpoints return JSON.
 {
   "type": "method",
   "query": "add",
-  "count": 3,
+  "count": 1,
   "results": [
     "public double add(double, double)"
   ]
 }
 ```
 
-### GET /graph/query?q=class:all
+### GET /query?q=class:all
 ```json
 {
   "query": "class:all",
-  "result": "Classes (5):\n  - com.example.Calculator\n  - ...",
-  "nodes": 150,
-  "edges": 300
+  "result": "Classes (3):\n  - com.example.calculator.Calculator\n  - com.example.calculator.Main\n  - com.example.calculator.StandardCalculator\n",
+  "nodes": 26,
+  "edges": 21
 }
 ```
 
-### GET /graph/stats
+### GET /stats
 ```json
 {
   "project": "/path/to/project",
-  "graph_file": "/path/to/graph.json",
-  "nodes": 150,
-  "edges": 300,
-  "built_at": 1699999999.999
-}
-```
-
-## Error Responses
-
-```json
-{
-  "error": "Class not found: com.example.NonExistent"
+  "nodes": 26,
+  "edges": 21
 }
 ```
 
@@ -218,20 +212,20 @@ All endpoints return JSON.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/` | Server info and current graph status |
-| GET | `/graph/query?q=QUERY` | Execute arbitrary GausVibe query |
 | GET | `/graph/stats` | Graph statistics (nodes, edges) |
 | GET | `/classes` | List all classes |
-| GET | `/classes/<fqn>` | Get class details |
-| GET | `/classes/<fqn>/methods` | List methods of a class |
-| GET | `/classes/<fqn>/subclasses` | List subclasses |
-| GET | `/classes/<fqn>/implementations` | List interface implementations |
+| GET | `/classes/{fqn}` | Get class details |
+| GET | `/classes/{fqn}/methods` | List methods of a class |
+| GET | `/classes/{fqn}/subclasses` | List subclasses |
+| GET | `/classes/{fqn}/implementations` | List interface implementations |
 | GET | `/methods` | List all methods |
 | GET | `/packages` | List all packages |
-| GET | `/search?q=NAME` | Search by name |
+| GET | `/query?q=QUERY` | Execute arbitrary GausVibe query |
+| GET | `/search?q=NAME` | Search for classes/methods by name |
 
 ## Query Language
 
-GausVibe supports these query types (use in `/graph/query` or via dedicated endpoints):
+Use the `/query` endpoint with these query types:
 
 | Query Type | Example | Description |
 |------------|---------|-------------|
@@ -249,7 +243,6 @@ GausVibe supports these query types (use in `/graph/query` or via dedicated endp
 | `field:all` | `field:all` | List all fields |
 | `field:class:FQN` | `field:class:com.example.MyClass` | Fields of class |
 | `package:all` | `package:all` | List all packages |
-| `package:NAME` | `package:com.example` | Get specific package |
 | `search:nodes:TYPE` | `search:nodes:CLASS` | Search nodes by type |
 | `search:edges:TYPE` | `search:edges:CALLS` | Search edges by type |
 | `stats` | `stats` | Graph statistics |
@@ -259,13 +252,15 @@ GausVibe supports these query types (use in `/graph/query` or via dedicated endp
 Run multiple servers on different ports for different projects:
 
 ```bash
+CP=$(mvn -q dependency:build-classpath -Dmdep.outputFile=/dev/stdout)
+
 # Terminal 1: Calculator project
-python gausvibe_server.py --project ../bakeoff1 --port 8080 &
+java -cp "target/classes:$CP" dk.gausdalfind.server.GausVibeServer --project ../bakeoff1 --port 8080 &
 
 # Terminal 2: GausVibe project  
-python gausvibe_server.py --project . --port 8081 &
+java -cp "target/classes:$CP" dk.gausdalfind.server.GausVibeServer --project . --port 8081 &
 
-# Terminal 3: Query both
+# Query both
 curl http://localhost:8080/classes        # Calculator classes
 curl http://localhost:8081/classes        # GausVibe classes
 ```
@@ -276,88 +271,99 @@ When you start the server:
 
 1. It **requires** a `--project` parameter (will error if missing)
 2. It **automatically** builds the graph for that project
-3. It **caches** the classpath from Maven (only computed once)
-4. It **prints** the graph statistics on startup
-5. It **listens** for requests on the specified port
+3. It **prints** the graph statistics on startup
+4. It **listens** for requests on the specified port
 
 Example startup output:
 ```
 Building graph for: /Users/magnusfind/Documents/find-shadow-model/bakeoff1
-Graph built: 15 nodes, 25 edges
+Graph built: 26 nodes, 21 edges
 
 ============================================================
-GausVibe Server (FastAPI) Running
+GausVibe Server (Pure Java) Running
 Project:  /Users/magnusfind/Documents/find-shadow-model/bakeoff1
-Graph:    /Users/magnusfind/.vibe/cache/gausvibe/graph_bakeoff1.json
-Nodes:    15
-Edges:    25
-URL:      http://0.0.0.0:8080
-Docs:     http://0.0.0.0:8080/docs
+Port:     8080
+Nodes:    26
+Edges:    21
+URL:      http://localhost:8080
 ============================================================
 ```
 
 ## Dependencies
 
-- Python 3.7+
-- FastAPI: `pip install fastapi uvicorn`
-- GausVibe: Already compiled in the project
-- Maven: For classpath resolution
+- Java 11+ (for HttpServer)
+- Maven (for building)
+- That's it! Zero external runtime dependencies
 
-## Features
+## Implementation Details
 
-- **FastAPI** - Modern, fast, async-ready
-- **Auto-generated docs** at `/docs` and `/redoc`
-- **Type hints** for better IDE support
-- **CORS enabled** for browser access
-- **Automatic graph building** on startup
+- Uses **JDK HttpServer** (com.sun.net.httpserver) - built into Java
+- Single JVM process - no spawning external processes
+- All query execution happens in-memory
+- Graph is built once on startup and cached
+- Thread pool for concurrent requests (10 threads)
+
+## Architecture
+
+```
+HTTP Request
+    ↓
+JDK HttpServer (port 8080)
+    ↓
+GausVibeServer
+    ↓
+Handler (BaseHandler)
+    ↓
+GraphQueryEngine / QueryParser
+    ↓
+Graph (in-memory)
+    ↓
+Response (JSON)
+```
 
 ## Performance
 
 - Graph building: ~1-5 seconds for medium projects
-- Query execution: ~10-100ms per query
-- Memory: Holds graph in memory for fast repeated queries
-- Graph caching: Graph file stored in `~/.vibe/cache/gausvibe/` by default
-
-## Custom Graph Location
-
-Use `--graph-file` to specify where the graph JSON should be stored:
-
-```bash
-python gausvibe_server.py --project ../bakeoff1 --graph-file /tmp/my-graph.json
-```
+- Query execution: ~1-10ms per query (in-memory)
+- Memory: Holds entire graph in memory
+- Concurrent requests: Thread pool handles up to 10 concurrent requests
 
 ## Troubleshooting
+
+**Error: "Could not find or load main class"**
+- Run `mvn clean compile` first
+- Make sure you're using the correct classpath
 
 **Error: "No graph loaded"**
 - Make sure you specified `--project` on startup
 - Check the project directory exists
 
-**Error: "Project directory not found"**
-- Verify the path is correct
-- Use absolute paths if having issues
+**Port already in use**
+- Change the port: `--port 8081`
+- Or kill the existing process: `lsof -i :8080`
 
-**Error: "Failed to get classpath"**
-- Run `mvn compile` in the GausVibe directory first
-- Ensure Maven is installed and in PATH
+## Comparison with Python Version
 
-**Server doesn't start**
-- Check Python and Flask are installed: `python -c "import flask; print(flask.__version__)"`
-- Check port is available: `lsof -i :8080`
+| Aspect | Pure Java | Python Wrapper |
+|--------|-----------|-----------------|
+| Dependencies | Zero | Flask, FastAPI |
+| Performance | ⚡ Faster | 🐢 Slower (process spawning) |
+| Complexity | Medium | Low |
+| Maintenance | Easy (Java project) | Harder (two languages) |
+| Startup | ~1-2s | ~2-3s |
+| Memory | Lower | Higher (two processes) |
 
-## Security Considerations
-
-For production use, consider adding:
-- Authentication (currently open to all)
-- Rate limiting
-- HTTPS support
-- Input validation
-- CORS restrictions
+**Pure Java wins for a Java project!**
 
 ## Development
 
 To modify the server:
-1. Edit `gausvibe_server.py`
-2. Restart the server
-3. Changes take effect immediately
+1. Edit `src/main/java/dk/gausdalfind/server/GausVibeServer.java`
+2. Run `mvn clean compile`
+3. Restart the server
 
-The server uses Flask's development mode by default (debug=False in production).
+The server uses:
+- `com.sun.net.httpserver.HttpServer` for HTTP
+- `dk.gausdalfind.graph.GausVibeBuilder` for graph building
+- `dk.gausdalfind.queries.GraphQueryEngine` for queries
+- `dk.gausdalfind.cli.QueryParser` for query parsing
