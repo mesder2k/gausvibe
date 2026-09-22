@@ -1,0 +1,36 @@
+# Maven build files
+/target/
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*~
+
+# Classpath cache
+classpath.txt
+
+# Graph files
+graph*.json
+server-graph.json
+
+# Environment
+.env
+*.env

@@ -41,7 +41,7 @@ instead of simulated baselines.
 The script below does everything: clones both tabs, pins them to the same
 PetClinic commit, verifies the test suite passes on both, builds GausVibe and
 its dependency classpath, installs the `gv` wrapper, builds the graph, and
-writes `~/bakeoff2/results/environment.md` with the actual recorded values.
+writes `/Users/magnusfind/Documents/find-shadow-model/bakeoff2/results/environment.md` with the actual recorded values.
 
 It is safe to re-run: existing clones are fetched and re-pinned instead of
 re-cloned. To move to a newer PetClinic later, change `PETCLINIC_SHA` and
@@ -63,11 +63,12 @@ set -euo pipefail
 # ---- Configuration -----------------------------------------------------
 PETCLINIC_SHA="818c4136ea971c21674525f9053de0d9c7ad8cfe"   # main HEAD 2026-08-26
 PETCLINIC_URL="https://github.com/spring-projects/spring-petclinic.git"
-BASE_DIR="$HOME/bakeoff2"
+GV_HOME="/Users/magnusfind/Documents/find-shadow-model/gausvibe"
+# Bake-off workspace: ../bakeoff2 relative to the gausvibe repo
+BASE_DIR="$(cd "$GV_HOME/.." && pwd)/bakeoff2"
 CONTROL_DIR="$BASE_DIR/petclinic-control"    # tab A
 GV_CLONE_DIR="$BASE_DIR/petclinic-gausvibe" # tab B
 RESULTS_DIR="$BASE_DIR/results"
-GV_HOME="/Users/magnusfind/Documents/find-shadow-model/gausvibe"
 
 echo "=== Bake-off 2 setup ==="
 mkdir -p "$RESULTS_DIR" "$BASE_DIR/bin"
@@ -122,8 +123,8 @@ echo "Step 3: GausVibe build and classpath"
 (cd "$GV_HOME" && mvn -q compile)
 JAVA_HOME=$(/usr/libexec/java_home -v 17) \
     mvn -q -f "$GV_HOME/pom.xml" dependency:build-classpath \
-    -Dmdep.outputFile=/tmp/classpath.txt
-echo "  classpath written to /tmp/classpath.txt"
+    -Dmdep.outputFile="$BASE_DIR/classpath.txt"
+echo "  classpath written to $BASE_DIR/classpath.txt"
 
 # ---- 4. Install the gv wrapper (used by tab B) ---------------------------
 echo ""
@@ -132,7 +133,7 @@ cat > "$BASE_DIR/bin/gv" << 'EOF'
 #!/bin/bash
 # GausVibe CLI wrapper for the bake-off
 GV_HOME="/Users/magnusfind/Documents/find-shadow-model/gausvibe"
-exec java -cp "$GV_HOME/target/classes:$(cat /tmp/classpath.txt)" dk.gausdalfind.Main "$@"
+exec java -cp "$GV_HOME/target/classes:$(cat /Users/magnusfind/Documents/find-shadow-model/bakeoff2/classpath.txt)" dk.gausdalfind.Main "$@"
 EOF
 chmod +x "$BASE_DIR/bin/gv"
 
@@ -158,7 +159,7 @@ Java:                            $(java -version 2>&1 | head -1)
 Vibe version:                    $(vibe --version 2>/dev/null || echo "not on PATH — record by hand")
 Graph file:                      $BASE_DIR/graph.json
 Graph size:                      $(wc -c < "$BASE_DIR/graph.json" | tr -d ' ') bytes (~$(($(wc -c < "$BASE_DIR/graph.json") / 4)) tokens est.)
-Classpath:                       /tmp/classpath.txt (regenerate after reboot — see bake-off-2.md Part 1)
+Classpath:                       $BASE_DIR/classpath.txt (regenerate by re-running the setup script)
 
 Model (both tabs):               FILL IN from /model
 Thinking level (both tabs):      FILL IN from /thinking
@@ -178,13 +179,15 @@ Notes on the script:
 - **`--detach` pinning:** both clones are checked out as a detached HEAD at
   the SHA so nothing that happens upstream on PetClinic `main` can drift into
   the experiment mid-run.
-- **Classpath caveat:** `/tmp/classpath.txt` is wiped on reboot. If tab B's
-  `gv` starts failing with ClassNotFound errors, re-run step 3 of the script
-  (or the whole script — it is idempotent and skips the long parts).
+- **Classpath:** the dependency classpath lives at
+  `/Users/magnusfind/Documents/find-shadow-model/bakeoff2/classpath.txt`,
+  inside the workspace, so it survives reboots. If `gv` ever fails with
+  ClassNotFound errors, re-running the setup script regenerates it (it is
+  idempotent and skips the long parts).
 - **`git clean -fdq` on re-run:** it discards uncommitted changes in the
   clones. That is the same reset the per-session protocol (Part 4, step 1)
-  performs anyway — archive diffs to `~/bakeoff2/results/` before re-running.
-- The graph lives outside the clones (`~/bakeoff2/graph.json`) so clone
+  performs anyway — archive diffs to `/Users/magnusfind/Documents/find-shadow-model/bakeoff2/results/` before re-running.
+- The graph lives outside the clones (`/Users/magnusfind/Documents/find-shadow-model/bakeoff2/graph.json`) so clone
   resets and re-pins never delete it.
 
 ### Post-setup: verify the grading file map
@@ -193,11 +196,11 @@ The ground-truth file lists in Part 3 reflect PetClinic's layout at the pinned
 SHA. Spend two minutes confirming them right after setup:
 
 ```bash
-ls ~/bakeoff2/petclinic-control/src/main/java/org/springframework/samples/petclinic/model/ \
-   ~/bakeoff2/petclinic-control/src/main/java/org/springframework/samples/petclinic/owner/ \
-   ~/bakeoff2/petclinic-control/src/main/resources/templates/owners/ \
-   ~/bakeoff2/petclinic-control/src/main/resources/templates/pets/ \
-   ~/bakeoff2/petclinic-control/src/main/resources/templates/visits/
+ls /Users/magnusfind/Documents/find-shadow-model/bakeoff2/petclinic-control/src/main/java/org/springframework/samples/petclinic/model/ \
+   /Users/magnusfind/Documents/find-shadow-model/bakeoff2/petclinic-control/src/main/java/org/springframework/samples/petclinic/owner/ \
+   /Users/magnusfind/Documents/find-shadow-model/bakeoff2/petclinic-control/src/main/resources/templates/owners/ \
+   /Users/magnusfind/Documents/find-shadow-model/bakeoff2/petclinic-control/src/main/resources/templates/pets/ \
+   /Users/magnusfind/Documents/find-shadow-model/bakeoff2/petclinic-control/src/main/resources/templates/visits/
 ```
 
 If anything has moved, correct Part 3 before running — the rubric references
@@ -211,16 +214,16 @@ Every tab B prompt = the preamble below + the task prompt, verbatim, as one
 message. Tab A gets the task prompt alone.
 
 ```
-You have the GausVibe code-graph CLI available as the command ~/bakeoff2/bin/gv.
+You have the GausVibe code-graph CLI available as the command /Users/magnusfind/Documents/find-shadow-model/bakeoff2/bin/gv.
 Use it to locate code instead of searching with grep/find. It indexes this
 Java repository as a graph of classes and methods.
 
-- The graph already exists at ~/bakeoff2/graph.json — do not rebuild it unless
+- The graph already exists at /Users/magnusfind/Documents/find-shadow-model/bakeoff2/graph.json — do not rebuild it unless
   that file is missing. To rebuild (only if missing):
-  ~/bakeoff2/bin/gv build --project . --output ~/bakeoff2/graph.json --serialize
+  /Users/magnusfind/Documents/find-shadow-model/bakeoff2/bin/gv build --project . --output /Users/magnusfind/Documents/find-shadow-model/bakeoff2/graph.json --serialize
 
 - To query it:
-  ~/bakeoff2/bin/gv query --graph ~/bakeoff2/graph.json "<query>"
+  /Users/magnusfind/Documents/find-shadow-model/bakeoff2/bin/gv query --graph /Users/magnusfind/Documents/find-shadow-model/bakeoff2/graph.json "<query>"
 
 - Example queries:
   "class:all"
@@ -405,11 +408,11 @@ Run this exact sequence for every task, in both tabs.
 1. **Reset the clone** so every task starts from a clean tree:
 
    ```bash
-   cd ~/bakeoff2/petclinic-control && git checkout . && git clean -fd
-   cd ~/bakeoff2/petclinic-gausvibe && git checkout . && git clean -fd
+   cd /Users/magnusfind/Documents/find-shadow-model/bakeoff2/petclinic-control && git checkout . && git clean -fd
+   cd /Users/magnusfind/Documents/find-shadow-model/bakeoff2/petclinic-gausvibe && git checkout . && git clean -fd
    ```
 
-   Keep `~/bakeoff2/graph.json` — it is outside the clones on purpose.
+   Keep `/Users/magnusfind/Documents/find-shadow-model/bakeoff2/graph.json` — it is outside the clones on purpose.
    Optionally stash the previous task's diff is already archived (step 7),
    so `git checkout .` only discards what you chose to discard.
 
@@ -417,8 +420,8 @@ Run this exact sequence for every task, in both tabs.
    (`/continue` carries prior context and taints the token count):
 
    ```bash
-   vibe --workdir ~/bakeoff2/petclinic-control    # tab A
-   vibe --workdir ~/bakeoff2/petclinic-gausvibe   # tab B
+   vibe --workdir /Users/magnusfind/Documents/find-shadow-model/bakeoff2/petclinic-control    # tab A
+   vibe --workdir /Users/magnusfind/Documents/find-shadow-model/bakeoff2/petclinic-gausvibe   # tab B
    ```
 
 3. **Confirm the environment matches**: `/model` in both tabs shows the same
@@ -440,10 +443,10 @@ Run this exact sequence for every task, in both tabs.
 7. **Verify and archive the result:**
 
    ```bash
-   cd ~/bakeoff2/petclinic-control   # or the gausvibe clone
+   cd /Users/magnusfind/Documents/find-shadow-model/bakeoff2/petclinic-control   # or the gausvibe clone
    ./mvnw -q test
-   git diff --stat > ~/bakeoff2/results/task<N>-<control|gausvibe>-run<K>.stat
-   git diff          > ~/bakeoff2/results/task<N>-<control|gausvibe>-run<K>.diff
+   git diff --stat > /Users/magnusfind/Documents/find-shadow-model/bakeoff2/results/task<N>-<control|gausvibe>-run<K>.stat
+   git diff          > /Users/magnusfind/Documents/find-shadow-model/bakeoff2/results/task<N>-<control|gausvibe>-run<K>.diff
    ```
 
 8. **Grade against the task's rubric** (0–5) and fill the run sheet before
@@ -484,9 +487,9 @@ Notable behavior:
   session — a fresh retry is a new run and both attempts get rows.
 - **Tests fail at verification:** score the build criterion 0, function 0,
   still award minimality if the diff itself is sane. Keep the row.
-- **`gv` command fails in tab B** (e.g. classpath wiped by reboot): fix the
-  environment, reset, and re-run the session; mark the aborted attempt as
-  invalid in notes but keep it out of the averages.
+- **`gv` command fails in tab B** (e.g. stale or missing classpath): fix the
+  environment (re-run the setup script), reset, and re-run the session; mark
+  the aborted attempt as invalid in notes but keep it out of the averages.
 - **Both tabs fail the same task:** the task may be too hard for the model or
   underspecified. Note it, fix the prompt, and re-run both tabs — never
   re-run just one tab.
@@ -550,8 +553,8 @@ each task 2–3 times per tab (fresh sessions, reset between) and report the
 mean and spread. Hands-off repeats:
 
 ```bash
-vibe -p "<task prompt verbatim>" --workdir ~/bakeoff2/petclinic-control --auto-approve
-vibe -p "<preamble + task prompt verbatim>" --workdir ~/bakeoff2/petclinic-gausvibe --auto-approve
+vibe -p "<task prompt verbatim>" --workdir /Users/magnusfind/Documents/find-shadow-model/bakeoff2/petclinic-control --auto-approve
+vibe -p "<preamble + task prompt verbatim>" --workdir /Users/magnusfind/Documents/find-shadow-model/bakeoff2/petclinic-gausvibe --auto-approve
 ```
 
 Programmatic mode uses the same default agent and auto-approves all tools, so
