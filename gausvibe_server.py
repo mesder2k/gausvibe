@@ -89,8 +89,12 @@ def get_classpath() -> str:
 def run_gausvibe(args: List[str], project_dir: Optional[str] = None) -> dict:
     """Run GausVibe CLI command and return result"""
     cp = get_classpath()
+    # Use absolute paths for classpath - always relative to GAUSVIBE_DIR
+    classes_dir = os.path.join(GAUSVIBE_DIR, "target", "classes")
+    full_cp = f"{classes_dir}:{cp}"
+    
     cmd = [
-        "java", "-cp", f"target/classes:{cp}",
+        "java", "-cp", full_cp,
         "dk.gausdalfind.Main"
     ] + args
     
@@ -122,7 +126,8 @@ def build_graph(project_dir: str, graph_file: str) -> None:
     ]
     
     print(f"Building graph for: {project_dir}")
-    result = run_gausvibe(args, project_dir=project_dir)
+    # Run from GAUSVIBE_DIR (where the code is), but --project points to the target
+    result = run_gausvibe(args, project_dir=None)
     
     if result["returncode"] != 0:
         print(f"Build failed: {result['stderr']}")
