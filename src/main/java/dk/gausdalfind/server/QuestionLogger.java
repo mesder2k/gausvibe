@@ -21,11 +21,13 @@ public class QuestionLogger {
 
     private final Path logFile;
     private final Path feedbackFile;
+    private final Path editFile;
     private final Object lock = new Object();
 
-    public QuestionLogger(Path logFile, Path feedbackFile) {
+    public QuestionLogger(Path logFile, Path feedbackFile, Path editFile) {
         this.logFile = logFile;
         this.feedbackFile = feedbackFile;
+        this.editFile = editFile;
     }
 
     /**
@@ -39,14 +41,12 @@ public class QuestionLogger {
         Path path = explicitPath != null
             ? Path.of(explicitPath)
             : Path.of(projectPath, ".gausvibe", "ask-log.jsonl");
-        Path feedback = path.getParent() == null
-            ? Path.of("feedback-log.jsonl")
-            : path.getParent().resolve("feedback-log.jsonl");
+        Path parent = path.getParent() == null ? Path.of(".") : path.getParent();
+        Path feedback = parent.resolve("feedback-log.jsonl");
+        Path edits = parent.resolve("edit-log.jsonl");
         try {
-            if (path.getParent() != null) {
-                Files.createDirectories(path.getParent());
-            }
-            for (Path p : new Path[]{path, feedback}) {
+            Files.createDirectories(parent);
+            for (Path p : new Path[]{path, feedback, edits}) {
                 if (!Files.exists(p)) {
                     Files.writeString(p, "", StandardCharsets.UTF_8);
                 }
@@ -55,7 +55,7 @@ public class QuestionLogger {
             System.err.println("Warning: cannot create ask log " + path + ": " + e.getMessage());
             return null;
         }
-        return new QuestionLogger(path, feedback);
+        return new QuestionLogger(path, feedback, edits);
     }
 
     /**
@@ -112,12 +112,48 @@ public class QuestionLogger {
         }
     }
 
+    /**
+     * Appends one file-update entry (POST /edited). Never throws.
+     *
+     * @param path the updated source file
+     * @param removedNodes nodes removed from the graph for this file
+     * @param addedNodes nodes added back after reparse
+     * @param kind agent-reported change type (e.g. add-method), may be null
+     * @param target agent-reported target (class or method fqn), may be null
+     * @param note free-text note, may be null
+     */
+    public void logEdit(String path, int removedNodes, int addedNodes,
+                        String kind, String target, String note) {
+        StringBuilder sb = new StringBuilder(128);
+        sb.append("{\"ts\":\"").append(Instant.now()).append('"');
+        sb.append(",\"project\":\"").append(escape(projectName())).append('"');
+        sb.append(",\"path\":").append(path == null ? "null" : quote(path));
+        sb.append(",\"removed_nodes\":").append(removedNodes);
+        sb.append(",\"added_nodes\":").append(addedNodes);
+        sb.append(",\"kind\":").append(kind == null ? "null" : quote(kind));
+        sb.append(",\"target\":").append(target == null ? "null" : quote(target));
+        sb.append(",\"note\":").append(note == null ? "null" : quote(note));
+        sb.append("}\n");
+        synchronized (lock) {
+            try {
+                Files.writeString(editFile, sb.toString(), StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            } catch (IOException e) {
+                System.err.println("Warning: edit log write failed: " + e.getMessage());
+            }
+        }
+    }
+
     public Path getLogFile() {
         return logFile;
     }
 
     public Path getFeedbackFile() {
         return feedbackFile;
+    }
+
+    public Path getEditFile() {
+        return editFile;
     }
 
     private String projectName() {

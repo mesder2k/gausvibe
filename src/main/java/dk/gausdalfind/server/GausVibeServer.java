@@ -51,12 +51,17 @@ public class GausVibeServer {
     
     private static Graph graph;
     private static GraphQueryEngine queryEngine;
+    private static GausVibeBuilder builder;
     private static int port = 8080;
     private static String projectPath;
     private static Path graphFile;
     private static HttpServer server;
     private static QuestionLogger questionLogger;
     private static String askLogPath;
+
+    // Recent file updates reported via POST /edited (bounded)
+    private static final Deque<Map<String, Object>> recentEdits = new java.util.concurrent.ConcurrentLinkedDeque<>();
+    private static final int MAX_RECENT_EDITS = 200;
 
     public static String getProjectPath() {
         return projectPath;
@@ -73,9 +78,9 @@ public class GausVibeServer {
         
         // Build graph
         System.out.println("Building graph for: " + projectPath);
-        GausVibeBuilder builder = new GausVibeBuilder(Path.of(projectPath));
+        builder = new GausVibeBuilder(Path.of(projectPath));
         builder.setParallel(true);
-        builder.setIncludeTestSources(false);
+        builder.setIncludeTestSources(true);
         graph = builder.build();
         queryEngine = new GraphQueryEngine(graph);
         
@@ -133,6 +138,8 @@ public class GausVibeServer {
         server.createContext("/search", new SearchHandler());
         server.createContext("/ask", new AskHandler());
         server.createContext("/feedback", new FeedbackHandler());
+        server.createContext("/edited", new EditedHandler());
+        server.createContext("/changes", new ChangesHandler());
         server.createContext("/classes/", new ClassDetailHandler());
     }
     
@@ -253,6 +260,8 @@ public class GausVibeServer {
             endpoints.put("GET /search?q=NAME", "Search by name");
             endpoints.put("GET /ask?q=QUESTION", "Ask a high-level question in plain language");
             endpoints.put("POST /feedback", "Rate an /ask answer (helpful, wrong, incomplete, too-big, other)");
+            endpoints.put("POST /edited", "Report a file edit; GausVibe reparses just that file and updates the graph");
+            endpoints.put("GET /changes", "Recent file updates reported via POST /edited");
             info.put("endpoints", endpoints);
             
             return toJson(info);
@@ -1155,6 +1164,100 @@ public class GausVibeServer {
                 // fall through to query-param handling
             }
             return map;
+        }
+    }
+
+    /**
+     * File-edit notification endpoint (Tier 1 incremental freshness).
+     *
+     * POST /edited with JSON body {"path": "..."} (or ?path=... query param):
+     * the harness reports that it changed a source file; GausVibe removes
+     * that file's nodes and edges, reparses the file, and re-resolves call
+     * sites, so the graph stays consistent without a full rebuild.
+     */
+    static class EditedHandler extends BaseHandler {
+        @Override
+        protected String handleRequest(HttpExchange exchange) throws Exception {
+            Map<String, String> params = getQueryParams(exchange.getRequestURI().getQuery());
+            if (params.isEmpty() && "POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+                String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                Map<String, String> bodyParams = parseSimpleJson(body);
+                if (!bodyParams.isEmpty()) {
+                    params = bodyParams;
+                }
+            }
+            String path = params.get("path");
+            if (path == null || path.isEmpty()) {
+                return responseJson(400, Map.of("error", "Missing 'path' parameter"));
+            }
+            
+            Path file = Path.of(path);
+            GausVibeBuilder.UpdateResult result;
+            try {
+                result = builder.updateFile(file);
+            } catch (Exception e) {
+                String cause = e.getCause() != null ? " (cause: " + e.getCause() + ")" : "";
+                return responseJson(500, Map.of(
+                    "error", "Failed to update file",
+                    "path", path,
+                    "detail", e.getClass().getSimpleName() + ": " + e.getMessage() + cause));
+            }
+            
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("path", path);
+            entry.put("kind", params.get("kind"));
+            entry.put("target", params.get("target"));
+            entry.put("note", params.get("note"));
+            entry.put("removed_nodes", result.removedNodes());
+            entry.put("added_nodes", result.addedNodes());
+            entry.put("removed_edges", result.removedEdges());
+            entry.put("added_edges", result.addedEdges());
+            entry.put("ts", java.time.Instant.now().toString());
+            
+            recentEdits.addLast(new LinkedHashMap<>(entry));
+            while (recentEdits.size() > MAX_RECENT_EDITS) {
+                recentEdits.pollFirst();
+            }
+            if (questionLogger != null) {
+                questionLogger.logEdit(path, result.removedNodes(), result.addedNodes(),
+                    params.get("kind"), params.get("target"), params.get("note"));
+            }
+            
+            entry.put("updated", true);
+            return toJson(entry);
+        }
+        
+        private Map<String, String> parseSimpleJson(String body) {
+            Map<String, String> map = new LinkedHashMap<>();
+            if (body == null || body.isBlank() || !body.trim().startsWith("{")) {
+                return map;
+            }
+            try {
+                com.google.gson.JsonObject obj = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+                for (var e2 : obj.entrySet()) {
+                    if (e2.getValue().isJsonPrimitive()) {
+                        map.put(e2.getKey(), e2.getValue().getAsString());
+                    }
+                }
+            } catch (Exception ignored) {
+                // fall through
+            }
+            return map;
+        }
+    }
+    
+    /**
+     * Recent changes endpoint: lists file updates reported via POST /edited.
+     */
+    static class ChangesHandler extends BaseHandler {
+        @Override
+        protected String handleRequest(HttpExchange exchange) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            List<Map<String, Object>> changes = new ArrayList<>(recentEdits);
+            Collections.reverse(changes);
+            result.put("count", changes.size());
+            result.put("changes", changes);
+            return toJson(result);
         }
     }
 

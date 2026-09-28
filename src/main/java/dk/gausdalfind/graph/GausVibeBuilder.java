@@ -224,6 +224,77 @@ public class GausVibeBuilder {
         }
     }
     
+    /**
+     * Result of a single-file incremental update.
+     */
+    public record UpdateResult(int removedNodes, int addedNodes, int removedEdges, int addedEdges) {}
+    
+    /**
+     * Incrementally updates one file: removes the file's old nodes (and all
+     * edges touching them), reparses the file, and re-resolves call sites.
+     *
+     * Callers in other files whose CALLS edges pointed into this file are
+     * re-linked automatically: their recorded call sites are re-resolved
+     * against the new method nodes (method IDs include signatures, so a
+     * signature change relinks only if the name still resolves).
+     *
+     * @param file the source file to update (absolute or relative)
+     * @return counts of removed/added nodes and edges
+     * @throws IOException if the file cannot be read or parsed
+     */
+    public UpdateResult updateFile(Path file) throws IOException {
+        List<Node> oldNodes = new ArrayList<>(findFileNodes(file));
+        int removedEdges = 0;
+        for (Node n : oldNodes) {
+            removedEdges += graph.getIndexes().getEdgesFrom(n.getId()).size()
+                + graph.getIndexes().getEdgesTo(n.getId()).size();
+        }
+        for (Node n : oldNodes) {
+            graph.removeNode(n.getId());
+        }
+        
+        int nodesBefore = graph.getNodeCount();
+        int edgesBefore = graph.getEdgeCount();
+        
+        parseFile(file);
+        resolveCallSites();
+        
+        int nodesAfter = graph.getNodeCount();
+        int edgesAfter = graph.getEdgeCount();
+        
+        return new UpdateResult(
+            oldNodes.size(),
+            nodesAfter - (nodesBefore - oldNodes.size()),
+            removedEdges,
+            edgesAfter - (edgesBefore - removedEdges));
+    }
+    
+    /**
+     * Finds the graph nodes owned by a file, tolerating absolute/relative
+     * path differences between how the graph was built and how the caller
+     * refers to the file.
+     */
+    private List<Node> findFileNodes(Path file) {
+        List<Node> exact = graph.getIndexes().getNodesByFile(file);
+        if (!exact.isEmpty()) {
+            return exact;
+        }
+        // Fallback: suffix / normalized-absolute matching
+        String fileStr = file.toString();
+        String fileAbs = file.toAbsolutePath().normalize().toString();
+        List<Node> matches = new ArrayList<>();
+        for (Node n : graph.getAllNodes()) {
+            Path f = n.getFile();
+            if (f == null) continue;
+            String fs = f.toString();
+            if (fs.equals(fileStr) || fs.endsWith("/" + fileStr)
+                || f.toAbsolutePath().normalize().toString().equals(fileAbs)) {
+                matches.add(n);
+            }
+        }
+        return matches;
+    }
+    
     // ==================== File Parsing ====================
     
     /**
