@@ -4,6 +4,8 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import dk.gausdalfind.graph.GausVibeBuilder;
+import dk.gausdalfind.model.CallGraphIndex;
+import dk.gausdalfind.model.EdgeTypes;
 import dk.gausdalfind.model.Graph;
 import dk.gausdalfind.model.Node;
 import dk.gausdalfind.model.declaration.ClassNode;
@@ -84,6 +86,11 @@ public class GausVibeServer {
         graph = builder.build();
         queryEngine = new GraphQueryEngine(graph);
         
+        // Enable the call graph index and backfill existing CALLS edges
+        graph.getIndexes().enableCallGraphIndex();
+        graph.getIndexes().getCallGraphIndex()
+            .indexCalls(graph.getIndexes().getEdgesByType(EdgeTypes.CALLS));
+        
         System.out.println("Graph built: " + graph.getNodeCount() + " nodes, " + graph.getEdgeCount() + " edges");
 
         questionLogger = QuestionLogger.create(projectPath, askLogPath);
@@ -141,6 +148,7 @@ public class GausVibeServer {
         server.createContext("/edited", new EditedHandler());
         server.createContext("/changes", new ChangesHandler());
         server.createContext("/tests", new TestsHandler());
+        server.createContext("/callpath", new CallPathHandler());
         server.createContext("/classes/", new ClassDetailHandler());
     }
     
@@ -264,6 +272,7 @@ public class GausVibeServer {
             endpoints.put("POST /edited", "Report a file edit; GausVibe reparses just that file and updates the graph");
             endpoints.put("GET /changes", "Recent file updates reported via POST /edited");
             endpoints.put("GET /tests/{fqn}", "Tests covering a class (by name convention and call graph)");
+            endpoints.put("GET /callpath?from=A&to=B", "Transitive call chains between two methods");
             info.put("endpoints", endpoints);
             
             return toJson(info);
@@ -855,6 +864,15 @@ public class GausVibeServer {
             if (lower.contains("call")) {
                 return callersQuery(question, methodName);
             }
+            // flow/path questions: only handled when a path actually resolves,
+            // otherwise fall through to the other routes
+            if (lower.contains("path") || lower.contains("flow")
+                || (lower.contains("from") && lower.contains("to"))) {
+                Map<String, Object> pathResult = askCallPath(question, candidates);
+                if (pathResult != null) {
+                    return pathResult;
+                }
+            }
             if (TEST_QUESTION.matcher(lower).find()) {
                 return testsQuery(question, candidates);
             }
@@ -1087,6 +1105,46 @@ public class GausVibeServer {
                 }
             }
             return best;
+        }
+
+        /**
+         * Handles "how does X flow/reach Y" questions via the call-path
+         * index. Returns null when no path resolves so the caller can try
+         * other routes.
+         */
+        private Map<String, Object> askCallPath(String question, List<String> candidates) {
+            java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("from\\s+([\\w.$]+).*?\\bto\\s+([\\w.$]+)",
+                    java.util.regex.Pattern.CASE_INSENSITIVE)
+                .matcher(question);
+            
+            String fromSpec = null;
+            String toSpec = null;
+            if (m.find()) {
+                fromSpec = m.group(1);
+                toSpec = m.group(2);
+            } else if (candidates.size() >= 2) {
+                // e.g. "path between RestController and TransportCreateIndexAction"
+                fromSpec = candidates.get(0);
+                toSpec = candidates.get(1);
+            }
+            if (fromSpec == null || toSpec == null) {
+                return null;
+            }
+            
+            Map<String, Object> result = callPaths(fromSpec, toSpec, 5, graph);
+            int count = (int) result.get("path_count");
+            if (count == 0) {
+                return null;
+            }
+            
+            StringBuilder sb = new StringBuilder();
+            sb.append("Call paths from ").append(fromSpec).append(" to ").append(toSpec)
+              .append(" (").append(count).append("):\n");
+            for (Object p : (List<?>) result.get("paths")) {
+                sb.append("  - ").append(p).append("\n");
+            }
+            return matched(question, "call-path", sb.toString(), count);
         }
 
         private Map<String, Object> callersQuery(String question, String methodName) {
@@ -1489,6 +1547,127 @@ public class GausVibeServer {
             }
             return false;
         }
+    }
+
+    /**
+     * Call-path endpoint: how does execution flow from method A to
+     * method B (transitive call chains, via the CallGraphIndex).
+     *
+     * GET /callpath?from=org.x.Foo.bar&to=org.x.Baz.qux&depth=5
+     */
+    static class CallPathHandler extends BaseHandler {
+        @Override
+        protected String handleRequest(HttpExchange exchange) {
+            Map<String, String> params = getQueryParams(exchange.getRequestURI().getQuery());
+            String from = params.get("from");
+            String to = params.get("to");
+            if (from == null || to == null || from.isEmpty() || to.isEmpty()) {
+                return responseJson(400, Map.of("error",
+                    "Missing 'from' and 'to' parameters (Class.method or method name)"));
+            }
+            int depth = 5;
+            try {
+                if (params.get("depth") != null) depth = Integer.parseInt(params.get("depth"));
+            } catch (NumberFormatException ignored) {
+                // keep default
+            }
+            return toJson(callPaths(from, to, depth, graph));
+        }
+    }
+
+    /**
+     * Finds call chains between two methods.
+     *
+     * Specs are "fqn.method" or a bare method name; ambiguous specs resolve
+     * to up to 3 candidate methods each. Returns at most 10 paths.
+     */
+    public static Map<String, Object> callPaths(String fromSpec, String toSpec, int maxDepth, Graph targetGraph) {
+        GraphQueryEngine engine = new GraphQueryEngine(targetGraph);
+        CallGraphIndex callIndex = targetGraph.getIndexes().getCallGraphIndex();
+        
+        List<String> fromIds = resolveMethodSpec(fromSpec, engine, 3);
+        List<String> toIds = resolveMethodSpec(toSpec, engine, 3);
+        
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("from", fromSpec);
+        result.put("to", toSpec);
+        
+        if (fromIds.isEmpty() || toIds.isEmpty() || callIndex == null) {
+            result.put("path_count", 0);
+            result.put("paths", new ArrayList<>());
+            if (callIndex == null) {
+                result.put("hint", "Call graph index not enabled");
+            } else {
+                result.put("hint", "Could not resolve both method specs in the graph");
+            }
+            return result;
+        }
+        
+        List<List<String>> allPaths = new ArrayList<>();
+        for (String fromId : fromIds) {
+            for (String toId : toIds) {
+                allPaths.addAll(callIndex.findCallPaths(fromId, toId, maxDepth));
+                if (allPaths.size() >= 10) break;
+            }
+            if (allPaths.size() >= 10) break;
+        }
+        
+        List<String> rendered = new ArrayList<>();
+        for (List<String> path : allPaths) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < path.size(); i++) {
+                if (i > 0) sb.append(" -> ");
+                sb.append(methodLabel(path.get(i), targetGraph));
+            }
+            rendered.add(sb.toString());
+        }
+        
+        result.put("path_count", rendered.size());
+        result.put("paths", rendered);
+        return result;
+    }
+    
+    /**
+     * Resolves a method spec ("fqn.method" or bare name) to method node IDs,
+     * capped at maxCandidates.
+     */
+    private static List<String> resolveMethodSpec(String spec, GraphQueryEngine engine, int maxCandidates) {
+        String cls = null;
+        String name = spec;
+        int dot = spec.lastIndexOf('.');
+        if (dot > 0) {
+            cls = spec.substring(0, dot);
+            name = spec.substring(dot + 1);
+        }
+        List<MethodNode> candidates = new ArrayList<>(engine.findMethodsByName(name));
+        if (cls != null && !candidates.isEmpty()) {
+            List<MethodNode> filtered = new ArrayList<>();
+            for (MethodNode m : candidates) {
+                String cn = m.getClassName();
+                if (cn != null && (cn.equals(cls) || cn.endsWith("." + cls))) {
+                    filtered.add(m);
+                }
+            }
+            if (!filtered.isEmpty()) {
+                candidates = filtered;
+            }
+        }
+        List<String> ids = new ArrayList<>();
+        for (MethodNode m : candidates) {
+            if (ids.size() >= maxCandidates) break;
+            ids.add(m.getId());
+        }
+        return ids;
+    }
+    
+    /**
+     * Renders a method node id as a readable label.
+     */
+    private static String methodLabel(String methodId, Graph targetGraph) {
+        return targetGraph.getNode(methodId)
+            .filter(n -> n instanceof MethodNode)
+            .map(n -> ((MethodNode) n).getQualifiedName())
+            .orElse(methodId);
     }
 
     static class SearchHandler extends BaseHandler {
