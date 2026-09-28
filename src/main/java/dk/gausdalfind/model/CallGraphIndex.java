@@ -383,12 +383,12 @@ public class CallGraphIndex {
      */
     private void findCallPaths(String currentId, String targetId, int remainingDepth,
                               List<String> currentPath, List<List<String>> result) {
-        if (remainingDepth <= 0) {
+        if (currentId.equals(targetId)) {
+            result.add(new ArrayList<>(currentPath));
             return;
         }
         
-        if (currentId.equals(targetId)) {
-            result.add(new ArrayList<>(currentPath));
+        if (remainingDepth <= 0) {
             return;
         }
         

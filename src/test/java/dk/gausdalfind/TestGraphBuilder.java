@@ -269,6 +269,6 @@ public class TestGraphBuilder {
         // Check cache hits
         assertEquals(2, cachingQuery.getCacheMisses());
         assertEquals(2, cachingQuery.getCacheHits());
-        assertEquals(1.0, cachingQuery.getCacheHitRate(), 0.001);
+        assertEquals(0.5, cachingQuery.getCacheHitRate(), 0.001);
     }
 }

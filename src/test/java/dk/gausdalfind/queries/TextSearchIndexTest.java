@@ -1,6 +1,7 @@
 package dk.gausdalfind.queries;
 
 import dk.gausdalfind.model.Node;
+import dk.gausdalfind.model.Position;
 import dk.gausdalfind.model.declaration.ClassNode;
 import dk.gausdalfind.model.declaration.MethodNode;
 import org.junit.jupiter.api.AfterEach;
@@ -332,18 +333,18 @@ class TextSearchIndexTest {
     
     @Test
     void testMaxTokenLength() {
-        TextSearchIndex customIndex = new TextSearchIndex(Collections.emptySet(), 1, 5);
+        TextSearchIndex customIndex = new TextSearchIndex(Collections.emptySet(), 1, 6);
         
         MockNode node = new MockNode("node", "abc abcdef abcdefgh", "com.example.Node", 
             Path.of("/test/Node.java"), "class");
         
         customIndex.index(node);
         
-        // "abc" and "abcdef" meet max length
+        // "abc" and "abcdef" meet max length (6)
         assertTrue(customIndex.search("abc").contains("node"));
         assertTrue(customIndex.search("abcdef").contains("node"));
         
-        // "abcdefgh" is too long (max length 5)
+        // "abcdefgh" is too long (max length 6)
         assertFalse(customIndex.search("abcdefgh").contains("node"));
     }
     
@@ -477,69 +478,17 @@ class TextSearchIndexTest {
     /**
      * Mock Node implementation for testing.
      */
-    private static class MockNode implements Node {
-        private final String id;
-        private final String name;
-        private final String qualifiedName;
-        private final Path file;
+    private static class MockNode extends dk.gausdalfind.model.declaration.DeclarationNode {
         private final String type;
         
         public MockNode(String id, String name, String qualifiedName, Path file, String type) {
-            this.id = id;
-            this.name = name;
-            this.qualifiedName = qualifiedName;
-            this.file = file;
+            super(id, name, qualifiedName, file, null, null);
             this.type = type;
-        }
-        
-        @Override
-        public String getId() {
-            return id;
         }
         
         @Override
         public String getType() {
             return type;
-        }
-        
-        @Override
-        public Path getFile() {
-            return file;
-        }
-        
-        @Override
-        public Position getStartPosition() {
-            return null;
-        }
-        
-        @Override
-        public Position getEndPosition() {
-            return null;
-        }
-        
-        @Override
-        public Map<String, Object> getProperties() {
-            return Collections.emptyMap();
-        }
-        
-        // Additional methods for convenience
-        public String getName() {
-            return name;
-        }
-        
-        public String getQualifiedName() {
-            return qualifiedName;
-        }
-        
-        public String getPackageName() {
-            if (qualifiedName != null && qualifiedName.contains(".")) {
-                return qualifiedName.substring(0, qualifiedName.lastIndexOf("."));
-            }
-            return null;
-        }
-        
-        public String getDescription() {
-            return null;
         }
     }
 }

@@ -1,5 +1,6 @@
 package dk.gausdalfind;
 
+import dk.gausdalfind.cli.EditCommand;
 import dk.gausdalfind.editing.*;
 import dk.gausdalfind.graph.GausVibeBuilder;
 import dk.gausdalfind.model.*;
@@ -72,7 +73,11 @@ public class SelfEditValidationTest {
         assertTrue(graph.getNodeCount() > 0, "Graph should have nodes");
         
         // Verify we have classes from GausVibe
-        Set<String> classNames = graph.getAllClassNames();
+        // Graph no longer exposes getAllClassNames(); derive it from the class index
+        Set<String> classNames = new HashSet<>();
+        for (ClassNode clazz : graph.getIndexes().getAllClasses()) {
+            classNames.add(clazz.getQualifiedName());
+        }
         assertTrue(classNames.contains("dk.gausdalfind.graph.GausVibeBuilder"),
             "Should find GausVibeBuilder");
         assertTrue(classNames.contains("dk.gausdalfind.cli.CommandLineInterface"),
@@ -83,7 +88,7 @@ public class SelfEditValidationTest {
         System.out.println("✅ Parser validation passed");
         System.out.println("  - Nodes: " + graph.getNodeCount());
         System.out.println("  - Classes: " + classNames.size());
-        System.out.println("  - Packages: " + graph.getAllPackageNames().size());
+        System.out.println("  - Packages: " + graph.getIndexes().getAllPackages().size());
     }
     
     /**
@@ -123,33 +128,32 @@ public class SelfEditValidationTest {
     @Tag("Phase5")
     @Tag("ComponentValidation")
     public void testComponent_EditOperations_Create() {
-        // Test creating various operation types
-        AddMethodOperation addMethod = new AddMethodOperation(
-            "dk.gausdalfind.test.TestClass",
-            "newMethod",
-            "public",
-            "void",
-            Collections.emptyList(),
-            Collections.emptyList(),
-            "System.out.println(\"Hello\");"
-        );
+        // Test creating various operation types (current API is builder-based)
+        AddMethodOperation addMethod = AddMethodOperation.builder()
+            .targetClass("dk.gausdalfind.test.TestClass")
+            .name("newMethod")
+            .returnType("void")
+            .addModifier("public")
+            .body("System.out.println(\"Hello\");")
+            .build();
         assertNotNull(addMethod);
         assertEquals("ADD_METHOD", addMethod.getType().name());
         assertEquals("newMethod", addMethod.getName());
         
-        RemoveMethodOperation removeMethod = new RemoveMethodOperation(
-            "dk.gausdalfind.test.TestClass",
-            "oldMethod"
+        // RemoveMethodOperation takes a single method qualified name
+        // (ClassFQN.methodName), not class + method separately
+        RemoveMethodOperation removeMethod = RemoveMethodOperation.of(
+            "dk.gausdalfind.test.TestClass.oldMethod"
         );
         assertNotNull(removeMethod);
         assertEquals("REMOVE_METHOD", removeMethod.getType().name());
         
-        AddFieldOperation addField = new AddFieldOperation(
-            "dk.gausdalfind.test.TestClass",
-            "newField",
-            "String",
-            Collections.emptyList()
-        );
+        AddFieldOperation addField = AddFieldOperation.builder()
+            .targetClass("dk.gausdalfind.test.TestClass")
+            .name("newField")
+            .type("String")
+            .addModifier("private")
+            .build();
         assertNotNull(addField);
         assertEquals("ADD_FIELD", addField.getType().name());
         
@@ -172,22 +176,26 @@ public class SelfEditValidationTest {
         ASTSourceSerializer serializer = new ASTSourceSerializer(graph);
         assertNotNull(serializer, "Serializer should be created");
         
-        // Test serialization of a specific class
-        Path outputDir = TEST_WORK_DIR.resolve("serialize-test");
-        Files.createDirectories(outputDir);
+        // serializeAll(Path) no longer exists; the current API serializes the
+        // graph's files to an in-memory map. (The disk-writing variants resolve
+        // the graph's absolute source paths, so they are not used here.)
+        Map<String, String> serialized = serializer.serializeModifiedFiles();
         
-        // Serialize all files
-        serializer.serializeAll(outputDir);
+        // Verify some files were serialized
+        assertFalse(serialized.isEmpty(), "Should serialize at least some files");
         
-        // Verify some files were created
-        long fileCount = Files.walk(outputDir)
-            .filter(Files::isRegularFile)
-            .count();
-        
-        assertTrue(fileCount > 0, "Should serialize at least some files");
+        // Verify a known class file was serialized with its class declaration
+        Optional<ClassNode> builderClass = graph.getIndexes().getClassByQualifiedName(
+            "dk.gausdalfind.graph.GausVibeBuilder"
+        );
+        assertTrue(builderClass.isPresent(), "Should find GausVibeBuilder");
+        String builderSource = serialized.get(builderClass.get().getFile().toString());
+        assertNotNull(builderSource, "GausVibeBuilder file should be serialized");
+        assertTrue(builderSource.contains("GausVibeBuilder"),
+            "Serialized source should contain the class declaration");
         
         System.out.println("✅ Serializer validation passed");
-        System.out.println("  - Serialized " + fileCount + " files to " + outputDir);
+        System.out.println("  - Serialized " + serialized.size() + " files");
     }
     
     /**
@@ -213,20 +221,21 @@ public class SelfEditValidationTest {
         assertTrue(cliClass.isPresent(), "Should find CommandLineInterface");
         
         // PHASE 3: EDIT
-        AddMethodOperation addMethodOp = new AddMethodOperation(
-            cliClass.get().getQualifiedName(),
-            "getSelfEditStatus",
-            "public",
-            "String",
-            Collections.emptyList(),
-            Collections.emptyList(),
-            "return \"Self-Editing: Phase 5 In Progress\";"
-        );
+        AddMethodOperation addMethodOp = AddMethodOperation.builder()
+            .targetClass(cliClass.get().getQualifiedName())
+            .name("getSelfEditStatus")
+            .returnType("String")
+            .addModifier("public")
+            .body("return \"Self-Editing: Phase 5 In Progress\";")
+            .build();
         
+        // Dry run: the operation is applied to the in-memory graph, but
+        // EditCommand must not write files back (it would resolve the graph's
+        // absolute source paths and overwrite the real source tree)
         EditCommand editCmd = new EditCommand(
             graph, 
             TEST_WORK_DIR.resolve("test-graph.json"), 
-            false, 
+            true, 
             "text", 
             false
         );
@@ -235,23 +244,19 @@ public class SelfEditValidationTest {
         assertTrue(result.length() > 0, "Result should not be empty");
         
         // PHASE 4: SERIALIZE
+        // serializeAll(Path) no longer exists; serialize the modified file
+        // in-memory and verify the new method is in the serialized source
         ASTSourceSerializer serializer = new ASTSourceSerializer(graph);
-        Path outputDir = TEST_WORK_DIR.resolve("roundtrip-test");
-        Files.createDirectories(outputDir);
-        serializer.serializeAll(outputDir);
+        String cliSource = serializer.serializeFile(cliClass.get().getFile().toString());
+        assertNotNull(cliSource, "Modified file should serialize");
         
-        // Verify the new method is in the serialized file
-        Path modifiedFile = outputDir.resolve("dk/gausdalfind/cli/CommandLineInterface.java");
-        assertTrue(Files.exists(modifiedFile), "Modified file should exist");
-        
-        String content = Files.readString(modifiedFile);
-        assertTrue(content.contains("getSelfEditStatus"), 
+        assertTrue(cliSource.contains("getSelfEditStatus"), 
             "Should contain new method: getSelfEditStatus");
         
         System.out.println("✅ Round-trip test passed (parse → query → edit → serialize)");
         System.out.println("  - Parsed: " + graph.getNodeCount() + " nodes");
         System.out.println("  - Edited: Added getSelfEditStatus() to CommandLineInterface");
-        System.out.println("  - Serialized: " + outputDir);
+        System.out.println("  - Serialized: dk/gausdalfind/cli/CommandLineInterface.java");
         System.out.println("  - ⚠️  Compilation verification requires Maven (see ISSUES.md)");
     }
     
@@ -275,28 +280,30 @@ public class SelfEditValidationTest {
         List<Operation> operations = new ArrayList<>();
         
         // Add a method
-        operations.add(new AddMethodOperation(
-            builderClass.get().getQualifiedName(),
-            "getBuildTimestamp",
-            "public",
-            "long",
-            Collections.emptyList(),
-            Collections.emptyList(),
-            "return System.currentTimeMillis();"
-        ));
+        operations.add(AddMethodOperation.builder()
+            .targetClass(builderClass.get().getQualifiedName())
+            .name("getBuildTimestamp")
+            .returnType("long")
+            .addModifier("public")
+            .body("return System.currentTimeMillis();")
+            .build()
+        );
         
         // Add a field
-        operations.add(new AddFieldOperation(
-            builderClass.get().getQualifiedName(),
-            "lastModified",
-            "long",
-            Collections.singletonList("private")
-        ));
+        operations.add(AddFieldOperation.builder()
+            .targetClass(builderClass.get().getQualifiedName())
+            .name("lastModified")
+            .type("long")
+            .addModifier("private")
+            .build()
+        );
         
+        // Dry run: operations are applied to the in-memory graph, but
+        // EditCommand must not write files back to the real source tree
         EditCommand editCmd = new EditCommand(
             graph, 
             TEST_WORK_DIR.resolve("batch-graph.json"), 
-            false, 
+            true, 
             "text", 
             false
         );
@@ -305,17 +312,13 @@ public class SelfEditValidationTest {
         
         // Serialize
         ASTSourceSerializer serializer = new ASTSourceSerializer(graph);
-        Path outputDir = TEST_WORK_DIR.resolve("batch-test");
-        Files.createDirectories(outputDir);
-        serializer.serializeAll(outputDir);
+        String builderSource = serializer.serializeFile(
+            builderClass.get().getFile().toString());
+        assertNotNull(builderSource, "Modified file should serialize");
         
         // Verify both changes
-        Path modifiedFile = outputDir.resolve("dk/gausdalfind/graph/GausVibeBuilder.java");
-        assertTrue(Files.exists(modifiedFile));
-        
-        String content = Files.readString(modifiedFile);
-        assertTrue(content.contains("getBuildTimestamp"), "Should contain new method");
-        assertTrue(content.contains("lastModified"), "Should contain new field");
+        assertTrue(builderSource.contains("getBuildTimestamp"), "Should contain new method");
+        assertTrue(builderSource.contains("lastModified"), "Should contain new field");
         
         System.out.println("✅ Batch edit test passed");
         System.out.println("  - Applied 2 operations (1 method + 1 field)");

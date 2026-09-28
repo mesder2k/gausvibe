@@ -1,5 +1,7 @@
 package dk.gausdalfind.model;
 
+import dk.gausdalfind.model.declaration.MethodNode;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -65,9 +67,9 @@ class CallGraphIndexTest {
     @Test
     void testIndexMultipleCallsFromList() {
         List<Edge> edges = Arrays.asList(
-            new MockEdge("methodA", "methodB", EdgeTypes.CALLS),
-            new MockEdge("methodA", "methodC", EdgeTypes.CALLS),
-            new MockEdge("methodB", "methodC", EdgeTypes.CALLS)
+            new Edge("methodA", "methodB", EdgeTypes.CALLS),
+            new Edge("methodA", "methodC", EdgeTypes.CALLS),
+            new Edge("methodB", "methodC", EdgeTypes.CALLS)
         );
         
         index.indexCalls(edges);
@@ -468,12 +470,12 @@ class CallGraphIndexTest {
     void testGetCallerNodes() {
         index.indexCall("methodA", "methodB");
         
-        // Create mock graph
-        MockGraph graph = new MockGraph();
-        graph.addNode("methodA", "A");
-        graph.addNode("methodB", "B");
+        // Create a graph with real method nodes
+        Graph graph = new Graph();
+        graph.addNode(methodNode("methodA"));
+        graph.addNode(methodNode("methodB"));
         
-        Set<MockNode> callers = index.getCallerNodes(new MockNode("methodB", "B"), graph);
+        Set<MethodNode> callers = index.getCallerNodes(methodNode("methodB"), graph);
         
         assertEquals(1, callers.size());
         assertEquals("methodA", callers.iterator().next().getId());
@@ -483,11 +485,11 @@ class CallGraphIndexTest {
     void testGetCalleeNodes() {
         index.indexCall("methodA", "methodB");
         
-        MockGraph graph = new MockGraph();
-        graph.addNode("methodA", "A");
-        graph.addNode("methodB", "B");
+        Graph graph = new Graph();
+        graph.addNode(methodNode("methodA"));
+        graph.addNode(methodNode("methodB"));
         
-        Set<MockNode> callees = index.getCalleeNodes(new MockNode("methodA", "A"), graph);
+        Set<MethodNode> callees = index.getCalleeNodes(methodNode("methodA"), graph);
         
         assertEquals(1, callees.size());
         assertEquals("methodB", callees.iterator().next().getId());
@@ -524,114 +526,14 @@ class CallGraphIndexTest {
         return true;
     }
     
-    // ==================== MOCK CLASSES ====================
-    
     /**
-     * Mock Edge implementation for testing.
+     * Creates a minimal MethodNode for the node-based tests.
      */
-    private static class MockEdge implements Edge {
-        private final String fromId;
-        private final String toId;
-        private final String type;
-        
-        public MockEdge(String fromId, String toId, String type) {
-            this.fromId = fromId;
-            this.toId = toId;
-            this.type = type;
-        }
-        
-        @Override
-        public String getFromId() {
-            return fromId;
-        }
-        
-        @Override
-        public String getToId() {
-            return toId;
-        }
-        
-        @Override
-        public String getType() {
-            return type;
-        }
-        
-        @Override
-        public Map<String, Object> getProperties() {
-            return Collections.emptyMap();
-        }
-    }
-    
-    /**
-     * Mock Graph implementation for testing.
-     */
-    private static class MockGraph {
-        private final Map<String, MockNode> nodes = new HashMap<>();
-        
-        public void addNode(String id, String name) {
-            nodes.put(id, new MockNode(id, name));
-        }
-        
-        public Optional<MockNode> getNode(String id) {
-            return Optional.ofNullable(nodes.get(id));
-        }
-    }
-    
-    /**
-     * Mock Node implementation for testing.
-     */
-    private static class MockNode implements Node {
-        private final String id;
-        private final String name;
-        
-        public MockNode(String id, String name) {
-            this.id = id;
-            this.name = name;
-        }
-        
-        @Override
-        public String getId() {
-            return id;
-        }
-        
-        @Override
-        public String getType() {
-            return "method";
-        }
-        
-        @Override
-        public Path getFile() {
-            return null;
-        }
-        
-        @Override
-        public Position getStartPosition() {
-            return null;
-        }
-        
-        @Override
-        public Position getEndPosition() {
-            return null;
-        }
-        
-        @Override
-        public Map<String, Object> getProperties() {
-            return Collections.emptyMap();
-        }
-        
-        public String getName() {
-            return name;
-        }
-        
-        public String getQualifiedName() {
-            return null;
-        }
-        
-        public String getPackageName() {
-            return null;
-        }
-        
-        public String getDescription() {
-            return null;
-        }
+    private static MethodNode methodNode(String id) {
+        return new MethodNode(
+            id, id, id + "()", id, "void",
+            Set.of(), false, false, List.of(),
+            null, null, null
+        );
     }
 }

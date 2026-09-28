@@ -1,14 +1,13 @@
 package dk.gausdalfind.parser;
 
+import com.github.javaparser.JavaParser;
+import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.StaticJavaParser;
 
 import java.nio.file.Path;
 
 /**
  * Configuration for JavaParser.
- * 
- * Sets up the parser with symbol solving capabilities for resolving
- * type references in the Java code.
  */
 public final class JavaParserConfig {
     
@@ -20,10 +19,13 @@ public final class JavaParserConfig {
     }
     
     /**
-     * Configures JavaParser with symbol solving for the given project root.
-     * 
-     * This should be called once before parsing any files.
-     * 
+     * Configures the shared static JavaParser for the given project root.
+     *
+     * Note: the static configuration was observed NOT to be reliably
+     * visible to parallelStream worker threads (modern-syntax files failed
+     * under parallel builds while parsing fine single-threaded). Use
+     * {@link #newParser()} for actual parsing.
+     *
      * @param root the project root directory
      */
     public static void setup(Path root) {
@@ -33,14 +35,28 @@ public final class JavaParserConfig {
         
         projectRoot = root;
         
-        // Note: Symbol resolution is disabled for now due to API compatibility issues
-        // with JavaParser 3.25.9. Symbol solver configuration needs to be updated.
-        // For basic parsing, we don't need symbol resolution.
         StaticJavaParser.getConfiguration()
             .setAttributeComments(true)
-            .setStoreTokens(true);
+            .setStoreTokens(true)
+            .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_17);
         
         configured = true;
+    }
+    
+    /**
+     * Returns a new parser with the project configuration: Java 17
+     * language level, comments and tokens stored. Each call gets its own
+     * parser instance, which is safe under parallel parsing.
+     *
+     * Without the explicit Java 17 language level, files using records,
+     * text blocks, pattern-matching instanceof or switch expressions
+     * fail to parse and are dropped from the graph.
+     */
+    public static JavaParser newParser() {
+        return new JavaParser(new ParserConfiguration()
+            .setAttributeComments(true)
+            .setStoreTokens(true)
+            .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_17));
     }
     
     /**
@@ -64,8 +80,5 @@ public final class JavaParserConfig {
     public static void reset() {
         configured = false;
         projectRoot = null;
-        StaticJavaParser.getConfiguration()
-            .setAttributeComments(false)
-            .setStoreTokens(false);
     }
 }

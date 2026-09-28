@@ -2,6 +2,10 @@ package dk.gausdalfind;
 
 import dk.gausdalfind.cli.*;
 import org.junit.jupiter.api.*;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**

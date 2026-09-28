@@ -132,13 +132,14 @@ public class NodeFactory {
         // Get superclass
         String superclass = null;
         if (!classDecl.getExtendedTypes().isEmpty()) {
-            superclass = classDecl.getExtendedTypes().get(0).toString();
+            superclass = context.resolveType(stripTypeArguments(
+                classDecl.getExtendedTypes().get(0).toString()));
         }
         
         // Get interfaces
         List<String> interfaces = new ArrayList<>();
         for (ClassOrInterfaceType iface : classDecl.getImplementedTypes()) {
-            interfaces.add(iface.toString());
+            interfaces.add(context.resolveType(stripTypeArguments(iface.toString())));
         }
         
         Path file = context.getCurrentFile();
@@ -223,17 +224,13 @@ public class NodeFactory {
         Position startPos = toPosition(methodDecl.getBegin().orElse(null));
         Position endPos = toPosition(methodDecl.getEnd().orElse(null));
         
+        // Method IDs include the signature so that overloads do not collide
+        // (two methods named "serialize" in the same class must both exist
+        // in the graph). Matches the documented ID format
+        // "mth:com/example/MyClass#method()".
         String id = NodeIdGenerator.forDeclaration(
-            NodeIdGenerator.NodeType.METHOD, qualifiedName
+            NodeIdGenerator.NodeType.METHOD, qualifiedName + "#" + signature
         );
-        
-        // For constructors, use the class name as the method name
-        if (isConstructor) {
-            id = NodeIdGenerator.forDeclaration(
-                NodeIdGenerator.NodeType.METHOD, 
-                qualifiedName + "#" + signature
-            );
-        }
         
         MethodNode node = new MethodNode(
             id, name, signature, qualifiedName, returnType, modifiers,
@@ -242,6 +239,7 @@ public class NodeFactory {
         
         // Store in context
         context.setCurrentMethod(qualifiedName + "#" + signature);
+        context.setCurrentMethodId(node.getId());
         context.addSymbol(name, node);
         
         // Add to graph
@@ -425,6 +423,19 @@ public class NodeFactory {
     /**
      * Converts a JavaParser Position to our Position record.
      */
+    /**
+     * Removes generic type arguments and array markers from a type string,
+     * e.g. "List<String>[]" -> "List".
+     */
+    private String stripTypeArguments(String type) {
+        if (type == null) return null;
+        return type.replaceAll("<[^<>]*>", "")
+                   .replaceAll("<[^<>]*>", "")
+                   .replaceAll("\\[\\]", "")
+                   .replaceAll("\\.\\.\\.", "")
+                   .trim();
+    }
+
     private Position toPosition(com.github.javaparser.Position pos) {
         if (pos == null) {
             return null;

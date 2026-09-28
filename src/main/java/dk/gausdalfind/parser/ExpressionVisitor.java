@@ -1,47 +1,30 @@
 package dk.gausdalfind.parser;
 
-import com.github.javaparser.ast.*;
 import com.github.javaparser.ast.body.Parameter;
+import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.*;
-import com.github.javaparser.ast.stmt.*;
-import com.github.javaparser.ast.type.Type;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
-import dk.gausdalfind.model.*;
-
-import java.util.*;
+import dk.gausdalfind.model.Graph;
+import dk.gausdalfind.model.Node;
 
 /**
  * Visitor for processing expression nodes in the JavaParser AST.
- * 
- * This visitor handles:
- * - Literals
- * - Variable references
- * - Field access
- * - Method calls
- * - Object creation (new)
- * - Array access
- * - Binary operations
- * - Unary operations
- * - Ternary expressions
- * - Cast expressions
- * - Instanceof expressions
- * - Lambda expressions
- * - Method references
- * - This/Super expressions
- * - etc.
- * 
- * It creates nodes for expressions and establishes relationships between them
- * (e.g., method call has receiver, binary op has left/right operands).
+ *
+ * Traversal contract: super.visit performs the single traversal of children;
+ * overridden methods only ADD work (e.g. recording call sites). Overridden
+ * methods must not manually re-accept children that super.visit already
+ * visits - re-accepting children made nested statements traverse
+ * exponentially (2^depth) and made large builds effectively hang.
  */
 public class ExpressionVisitor extends VoidVisitorAdapter<VisitorContext> {
-    
-    private final Graph graph;
-    private final NodeFactory nodeFactory;
-    private final EdgeFactory edgeFactory;
-    
+
+    protected final Graph graph;
+    protected final NodeFactory nodeFactory;
+    protected final EdgeFactory edgeFactory;
+
     /**
      * Creates a new expression visitor.
-     * 
+     *
      * @param graph the graph to add nodes to
      * @param context the visitor context
      */
@@ -56,274 +39,134 @@ public class ExpressionVisitor extends VoidVisitorAdapter<VisitorContext> {
         this.nodeFactory = new NodeFactory(graph, context);
         this.edgeFactory = new EdgeFactory(graph, context);
     }
-    
+
     /**
-     * Visits a BinaryExpr.
-     */
-    @Override
-    public void visit(BinaryExpr binaryExpr, VisitorContext context) {
-        super.visit(binaryExpr, context);
-        
-        // Process left operand
-        binaryExpr.getLeft().accept(this, context);
-        
-        // Process right operand
-        binaryExpr.getRight().accept(this, context);
-        
-        // Process operator
-        String operator = binaryExpr.getOperator().toString();
-        // Would create operator node if we had one
-    }
-    
-    /**
-     * Visits a UnaryExpr.
-     */
-    @Override
-    public void visit(UnaryExpr unaryExpr, VisitorContext context) {
-        super.visit(unaryExpr, context);
-        
-        // Process operand
-        unaryExpr.getExpression().accept(this, context);
-        
-        // Process operator
-        String operator = unaryExpr.getOperator().toString();
-        // Would create operator node if we had one
-    }
-    
-    /**
-     * Visits a MethodCallExpr.
+     * Visits a MethodCallExpr: records the call site for post-build
+     * CALLS edge resolution.
      */
     @Override
     public void visit(MethodCallExpr methodCall, VisitorContext context) {
         super.visit(methodCall, context);
-        
-        // Process scope/receiver
-        methodCall.getScope().ifPresent(scope -> {
-            scope.accept(this, context);
-        });
-        
-        // Process arguments
-        for (Expression arg : methodCall.getArguments()) {
-            arg.accept(this, context);
+        recordCallSite(methodCall, context);
+    }
+
+    /**
+     * Records a method call site so a CALLS edge can be created once the
+     * whole graph is built (the callee's class may live in another file).
+     */
+    private void recordCallSite(MethodCallExpr methodCall, VisitorContext context) {
+        String callerMethodId = context.getCurrentMethodId();
+        if (callerMethodId == null || callerMethodId.isBlank()) {
+            return; // call outside any method body (field initializer, static block)
         }
-        
-        // Get method name
         String methodName = methodCall.getName().toString();
-        
-        // Note: We'll resolve the actual method being called in Phase 3 (Resolution)
+        String receiverType = resolveReceiverType(methodCall.getScope().orElse(null), context);
+        context.recordCall(new VisitorContext.CallRecord(
+            callerMethodId, context.getCurrentClass(), receiverType,
+            methodName, false, context.getCurrentFile()));
     }
-    
+
     /**
-     * Visits a FieldAccessExpr.
-     */
-    @Override
-    public void visit(FieldAccessExpr fieldAccess, VisitorContext context) {
-        super.visit(fieldAccess, context);
-        
-        // Process scope/receiver
-        Expression scope = fieldAccess.getScope();
-        if (scope != null) {
-            scope.accept(this, context);
-        }
-        
-        // Get field name
-        String fieldName = fieldAccess.getName().toString();
-    }
-    
-    /**
-     * Visits a NameExpr (variable reference).
-     */
-    @Override
-    public void visit(NameExpr nameExpr, VisitorContext context) {
-        super.visit(nameExpr, context);
-        
-        // Get the name being referenced
-        String name = nameExpr.getName().toString();
-        
-        // Note: We'll resolve this to the actual variable in Phase 3 (Resolution)
-    }
-    
-    /**
-     * Visits an ObjectCreationExpr (new).
+     * Visits an ObjectCreationExpr (new): records the constructor call site.
      */
     @Override
     public void visit(ObjectCreationExpr objCreation, VisitorContext context) {
         super.visit(objCreation, context);
-        
-        // Process scope
-        objCreation.getScope().ifPresent(scope -> {
-            scope.accept(this, context);
-        });
-        
-        // Get class name
-        String className = objCreation.getType().toString();
-        
-        // Process arguments
-        for (Expression arg : objCreation.getArguments()) {
-            arg.accept(this, context);
+
+        String callerMethodId = context.getCurrentMethodId();
+        if (callerMethodId != null && !callerMethodId.isBlank()) {
+            String typeName = objCreation.getType().getName().toString();
+            String simpleName = typeName.contains(".")
+                ? typeName.substring(typeName.lastIndexOf('.') + 1) : typeName;
+            context.recordCall(new VisitorContext.CallRecord(
+                callerMethodId, context.getCurrentClass(), typeName,
+                simpleName, true, context.getCurrentFile()));
         }
-        
-        // Process anonymous class body if present
-        objCreation.getAnonymousClassBody().ifPresent(body -> {
-            body.accept(new StatementVisitor(graph, context), context);
-        });
     }
-    
+
     /**
-     * Visits an ArrayAccessExpr.
-     */
-    @Override
-    public void visit(ArrayAccessExpr arrayAccess, VisitorContext context) {
-        super.visit(arrayAccess, context);
-        
-        // Process array expression
-        arrayAccess.getName().accept(this, context);
-        
-        // Process index expression
-        arrayAccess.getIndex().accept(this, context);
-    }
-    
-    /**
-     * Visits an ArrayCreationExpr.
-     */
-    @Override
-    public void visit(ArrayCreationExpr arrayCreation, VisitorContext context) {
-        super.visit(arrayCreation, context);
-        
-        // Process element type
-        Type elementType = arrayCreation.getElementType();
-        if (elementType != null) {
-            // Would process type
-        }
-        
-        // Process dimensions
-        for (ArrayCreationLevel level : arrayCreation.getLevels()) {
-            level.getDimension().ifPresent(dim -> {
-                dim.accept(this, context);
-            });
-        }
-        
-        // Process initializer
-        arrayCreation.getInitializer().ifPresent(init -> {
-            init.accept(new StatementVisitor(graph, context), context);
-        });
-    }
-    
-    /**
-     * Visits a ConditionalExpr (ternary operator).
-     */
-    @Override
-    public void visit(ConditionalExpr conditionalExpr, VisitorContext context) {
-        super.visit(conditionalExpr, context);
-        
-        // Process condition
-        conditionalExpr.getCondition().accept(this, context);
-        
-        // Process then expression
-        conditionalExpr.getThenExpr().accept(this, context);
-        
-        // Process else expression
-        conditionalExpr.getElseExpr().accept(this, context);
-    }
-    
-    /**
-     * Visits a CastExpr.
-     */
-    @Override
-    public void visit(CastExpr castExpr, VisitorContext context) {
-        super.visit(castExpr, context);
-        
-        // Process expression
-        castExpr.getExpression().accept(this, context);
-        
-        // Get type
-        String type = castExpr.getType().toString();
-    }
-    
-    /**
-     * Visits an InstanceOfExpr.
-     */
-    @Override
-    public void visit(InstanceOfExpr instanceofExpr, VisitorContext context) {
-        super.visit(instanceofExpr, context);
-        
-        // Process expression
-        instanceofExpr.getExpression().accept(this, context);
-        
-        // Get type
-        String type = instanceofExpr.getType().toString();
-    }
-    
-    /**
-     * Visits a LambdaExpr.
+     * Visits a LambdaExpr: parameters are dispatched to the
+     * DeclarationVisitor so ParameterNodes are created; the body continues
+     * in this visitor. super.visit is NOT called to avoid traversing
+     * parameters and body twice.
      */
     @Override
     public void visit(LambdaExpr lambdaExpr, VisitorContext context) {
-        super.visit(lambdaExpr, context);
-        
-        // Process parameters
         for (Parameter param : lambdaExpr.getParameters()) {
             param.accept(new DeclarationVisitor(graph, context), context);
         }
-        
-        // Process body
-        lambdaExpr.getBody().accept(new StatementVisitor(graph, context), context);
+        lambdaExpr.getBody().accept(this, context);
     }
-    
+
     /**
-     * Visits a MethodReferenceExpr.
+     * Visits a VariableDeclarationExpr (local variable declaration):
+     * creates the VariableNode first (so later receiver lookups resolve),
+     * then visits initializer expressions for call recording.
+     * super.visit is NOT called to avoid traversing declarators twice.
      */
     @Override
-    public void visit(MethodReferenceExpr methodRef, VisitorContext context) {
-        super.visit(methodRef, context);
-        
-        // Process scope
-        Expression scope = methodRef.getScope();
-        if (scope != null) {
-            scope.accept(this, context);
+    public void visit(VariableDeclarationExpr varDeclExpr, VisitorContext context) {
+        for (VariableDeclarator var : varDeclExpr.getVariables()) {
+            var.accept(new DeclarationVisitor(graph, context), context);
+            var.getInitializer().ifPresent(init -> init.accept(this, context));
         }
-        
-        // Get method name
-        String methodName = methodRef.getIdentifier();
     }
-    
+
     /**
-     * Visits a ThisExpr.
+     * Best-effort resolution of the receiver's declared type name.
+     * Returns null when the receiver cannot be resolved statically.
      */
-    @Override
-    public void visit(ThisExpr thisExpr, VisitorContext context) {
-        super.visit(thisExpr, context);
-        // Note: getClassExpr() not available in JavaParser 3.25.9
+    private String resolveReceiverType(Expression scope, VisitorContext context) {
+        if (scope == null) {
+            return null; // unqualified call: try own class, then unique name match
+        }
+        if (scope instanceof ThisExpr) {
+            return context.getCurrentClass();
+        }
+        if (scope instanceof NameExpr) {
+            String name = ((NameExpr) scope).getName().toString();
+            String type = symbolType(lookupSymbol(name, context));
+            if (type != null) return type;
+            // no local symbol: could be a class name (static call)
+            return name;
+        }
+        if (scope instanceof FieldAccessExpr) {
+            String name = ((FieldAccessExpr) scope).getName().toString();
+            return symbolType(lookupSymbol(name, context));
+        }
+        if (scope instanceof SuperExpr) {
+            return null;
+        }
+        // chained calls, casts, etc.: unresolved
+        return null;
     }
-    
+
     /**
-     * Visits a SuperExpr.
+     * Looks up a symbol by name, in the lexical scope first, then in the
+     * file-level symbol table (where variables, parameters and fields are
+     * registered by NodeFactory).
      */
-    @Override
-    public void visit(SuperExpr superExpr, VisitorContext context) {
-        super.visit(superExpr, context);
-        // Note: getClassExpr() not available in JavaParser 3.25.9
+    private Node lookupSymbol(String name, VisitorContext context) {
+        Node symbol = context.getCurrentScope().getSymbol(name);
+        if (symbol != null) {
+            return symbol;
+        }
+        return context.getLocalSymbols().get(name);
     }
-    
+
     /**
-     * Visits an EnclosedExpr (parentheses).
+     * Returns the declared type name of a variable/field symbol.
      */
-    @Override
-    public void visit(EnclosedExpr enclosedExpr, VisitorContext context) {
-        super.visit(enclosedExpr, context);
-        
-        // Process inner expression
-        enclosedExpr.getInner().accept(this, context);
-    }
-    
-    /**
-     * Visits a ClassExpr.
-     */
-    @Override
-    public void visit(ClassExpr classExpr, VisitorContext context) {
-        super.visit(classExpr, context);
-        
-        // Get class type
-        String type = classExpr.getType().toString();
+    private String symbolType(Node symbol) {
+        if (symbol instanceof dk.gausdalfind.model.declaration.VariableNode) {
+            return ((dk.gausdalfind.model.declaration.VariableNode) symbol).getDataType();
+        }
+        if (symbol instanceof dk.gausdalfind.model.declaration.FieldNode) {
+            return ((dk.gausdalfind.model.declaration.FieldNode) symbol).getDataType();
+        }
+        if (symbol instanceof dk.gausdalfind.model.declaration.ParameterNode) {
+            return ((dk.gausdalfind.model.declaration.ParameterNode) symbol).getDataType();
+        }
+        return null;
     }
 }

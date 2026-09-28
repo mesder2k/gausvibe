@@ -89,16 +89,17 @@ public class Indexes {
         nodesById.put(id, node);
         
         // Index by type
-        nodesByType.computeIfAbsent(type, k -> new ArrayList<>()).add(node);
+        nodesByType.computeIfAbsent(type, k -> Collections.synchronizedList(new ArrayList<>())).add(node);
         
         // Index by file
         if (file != null) {
-            nodesByFile.computeIfAbsent(file, k -> new ArrayList<>()).add(node);
+            nodesByFile.computeIfAbsent(file, k -> Collections.synchronizedList(new ArrayList<>())).add(node);
         }
         
         // Type-specific indexing
         switch (type) {
             case Node.TYPE_CLASS:
+            case Node.TYPE_INTERFACE:
                 indexClass(node);
                 break;
             case Node.TYPE_METHOD:
@@ -124,7 +125,7 @@ public class Indexes {
             classesByFqn.put(fqn, cls);
         }
         if (name != null && !name.isBlank()) {
-            classesByName.computeIfAbsent(name, k -> new ArrayList<>()).add(cls);
+            classesByName.computeIfAbsent(name, k -> Collections.synchronizedList(new ArrayList<>())).add(cls);
         }
     }
     
@@ -139,7 +140,7 @@ public class Indexes {
             methodsBySignature.put(signature, method);
         }
         if (name != null && !name.isBlank()) {
-            methodsByName.computeIfAbsent(name, k -> new ArrayList<>()).add(method);
+            methodsByName.computeIfAbsent(name, k -> Collections.synchronizedList(new ArrayList<>())).add(method);
         }
     }
     
@@ -154,7 +155,7 @@ public class Indexes {
             fieldsByFqn.put(fqn, field);
         }
         if (name != null && !name.isBlank()) {
-            fieldsByName.computeIfAbsent(name, k -> new ArrayList<>()).add(field);
+            fieldsByName.computeIfAbsent(name, k -> Collections.synchronizedList(new ArrayList<>())).add(field);
         }
     }
     
@@ -182,13 +183,13 @@ public class Indexes {
         String toId = edge.getToId();
         
         // Index by type
-        edgesByType.computeIfAbsent(type, k -> new ArrayList<>()).add(edge);
+        edgesByType.computeIfAbsent(type, k -> Collections.synchronizedList(new ArrayList<>())).add(edge);
         
         // Index by from node
-        edgesFrom.computeIfAbsent(fromId, k -> new ArrayList<>()).add(edge);
+        edgesFrom.computeIfAbsent(fromId, k -> Collections.synchronizedList(new ArrayList<>())).add(edge);
         
         // Index by to node
-        edgesTo.computeIfAbsent(toId, k -> new ArrayList<>()).add(edge);
+        edgesTo.computeIfAbsent(toId, k -> Collections.synchronizedList(new ArrayList<>())).add(edge);
         
         // Update call graph index if enabled
         if (callGraphIndex != null && EdgeTypes.CALLS.equals(type)) {

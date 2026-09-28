@@ -28,7 +28,43 @@ public class VisitorContext {
     private String currentPackage;
     private String currentClass;
     private String currentMethod;
+    private String currentMethodId;
     private int currentDepth;
+
+    // Call sites recorded during parsing, resolved after the full graph is built
+    private final List<CallRecord> recordedCalls = new ArrayList<>();
+    
+    // Dedup keys for recorded calls: the statement/expression visitors
+    // traverse nested statements more than once (super.visit plus explicit
+    // child loops), which would otherwise duplicate call sites exponentially
+    // in deeply nested code. One edge per (caller, receiver, method) is enough.
+    private final java.util.Set<String> recordedCallKeys = new java.util.HashSet<>();
+
+    /**
+     * A method-call site recorded during parsing.
+     *
+     * The receiver type is the raw source-level type name (may be a simple
+     * name); full resolution happens post-build when all classes are known.
+     */
+    public static class CallRecord {
+        public final String callerMethodId;
+        public final String callerClassFqn;
+        public final String receiverType;
+        public final String methodName;
+        public final boolean constructorCall;
+        public final Path file;
+
+        public CallRecord(String callerMethodId, String callerClassFqn,
+                          String receiverType, String methodName,
+                          boolean constructorCall, Path file) {
+            this.callerMethodId = callerMethodId;
+            this.callerClassFqn = callerClassFqn;
+            this.receiverType = receiverType;
+            this.methodName = methodName;
+            this.constructorCall = constructorCall;
+            this.file = file;
+        }
+    }
     
     // Symbol table for the current file (will be merged into global table later)
     private final Map<String, Node> localSymbols;
@@ -130,6 +166,42 @@ public class VisitorContext {
      */
     public void setCurrentMethod(String currentMethod) {
         this.currentMethod = currentMethod;
+    }
+    
+    /**
+     * Returns the graph ID of the current method node, or null.
+     */
+    public String getCurrentMethodId() {
+        return currentMethodId;
+    }
+    
+    /**
+     * Sets the graph ID of the current method node.
+     */
+    public void setCurrentMethodId(String currentMethodId) {
+        this.currentMethodId = currentMethodId;
+    }
+    
+    /**
+     * Records a method-call site for post-build resolution.
+     * Duplicate (caller, receiver, method) combinations are recorded once.
+     */
+    public void recordCall(CallRecord record) {
+        if (record == null || record.callerMethodId == null) {
+            return;
+        }
+        String key = record.callerMethodId + "|" + record.receiverType + "|"
+            + record.methodName + "|" + record.constructorCall;
+        if (recordedCallKeys.add(key)) {
+            recordedCalls.add(record);
+        }
+    }
+    
+    /**
+     * Returns the call sites recorded for this file.
+     */
+    public List<CallRecord> getRecordedCalls() {
+        return Collections.unmodifiableList(recordedCalls);
     }
     
     /**
@@ -328,6 +400,7 @@ public class VisitorContext {
         currentPackage = null;
         currentClass = null;
         currentMethod = null;
+        currentMethodId = null;
         currentDepth = 0;
         packageStack.clear();
         classStack.clear();

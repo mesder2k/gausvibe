@@ -130,6 +130,10 @@ public class TextSearchIndex {
         for (String text : textsToIndex) {
             if (text != null && !text.isBlank()) {
                 tokens.addAll(tokenize(text));
+                String whole = wholeToken(text);
+                if (whole != null) {
+                    tokens.add(whole);
+                }
             }
         }
         
@@ -412,6 +416,21 @@ public class TextSearchIndex {
         return tokens;
     }
     
+    /**
+     * Returns the whole text as a single token if it contains no whitespace
+     * (e.g. an identifier like "MyClass" or "com.example.MyClass"),
+     * or null if the text should only be indexed as split tokens.
+     */
+    private String wholeToken(String text) {
+        String trimmed = text.trim();
+        if (trimmed.isEmpty() || trimmed.chars().anyMatch(Character::isWhitespace)) {
+            return null;
+        }
+        String cleaned = trimmed.replaceAll("^[^a-zA-Z0-9]+", "")
+                                .replaceAll("[^a-zA-Z0-9]+$", "");
+        return cleaned.isEmpty() ? null : cleaned;
+    }
+
     // ==================== LOOKUP METHODS ====================
     
     /**

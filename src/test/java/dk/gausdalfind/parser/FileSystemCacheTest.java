@@ -303,14 +303,14 @@ class FileSystemCacheTest {
     
     @Test
     void testRelativePath() throws IOException {
-        // Test with relative path
-        Path relativePath = tempDir.relativize(testDir1);
+        // Test with a non-canonical path (redundant segments)
+        Path nonCanonical = tempDir.resolve("dir1").resolve("..").resolve("dir1");
         List<Path> files = Arrays.asList(testDir1.resolve("File1.java"));
         
-        cache.put(relativePath, files);
+        cache.put(nonCanonical, files);
         
-        // Should work with absolute path too (canonicalization)
-        assertTrue(cache.get(testDir1.toAbsolutePath()).isPresent());
+        // Should work with the canonical absolute path too (canonicalization)
+        assertTrue(cache.get(testDir1.toAbsolutePath().normalize()).isPresent());
     }
     
     @Test

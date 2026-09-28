@@ -127,10 +127,11 @@ public final class FileSystemCache {
             return cached.get();
         }
         
-        // Load and cache
+        // Load and cache, then return the cached instance so repeated
+        // calls yield the same object
         List<Path> files = loader.load(canonical);
         put(directory, files);
-        return files;
+        return get(directory).orElse(files);
     }
     
     /**

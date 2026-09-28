@@ -51,6 +51,7 @@ public interface Node {
      */
     String TYPE_PACKAGE = "PACKAGE";
     String TYPE_CLASS = "CLASS";
+    String TYPE_INTERFACE = "INTERFACE";
     String TYPE_METHOD = "METHOD";
     String TYPE_FIELD = "FIELD";
     String TYPE_PARAMETER = "PARAMETER";

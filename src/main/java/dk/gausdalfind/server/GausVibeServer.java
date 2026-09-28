@@ -44,6 +44,8 @@ import java.util.concurrent.Executors;
  *   GET  /query?q=QUERY        - Execute query
  *   GET  /stats               - Graph statistics
  *   GET  /search?q=NAME        - Search by name
+ *   GET  /ask?q=QUESTION      - Ask a high-level question in plain language
+ *                              - every question is logged to <project>/.gausvibe/ask-log.jsonl
  */
 public class GausVibeServer {
     
@@ -53,6 +55,12 @@ public class GausVibeServer {
     private static String projectPath;
     private static Path graphFile;
     private static HttpServer server;
+    private static QuestionLogger questionLogger;
+    private static String askLogPath;
+
+    public static String getProjectPath() {
+        return projectPath;
+    }
     
     public static void main(String[] args) throws IOException {
         parseArgs(args);
@@ -72,7 +80,12 @@ public class GausVibeServer {
         queryEngine = new GraphQueryEngine(graph);
         
         System.out.println("Graph built: " + graph.getNodeCount() + " nodes, " + graph.getEdgeCount() + " edges");
-        
+
+        questionLogger = QuestionLogger.create(projectPath, askLogPath);
+        if (questionLogger != null) {
+            System.out.println("Ask log:  " + questionLogger.getLogFile());
+        }
+
         // Start server
         server = HttpServer.create(new InetSocketAddress(port), 0);
         registerHandlers();
@@ -98,6 +111,9 @@ public class GausVibeServer {
                 case "--project":
                     projectPath = args[++i];
                     break;
+                case "--ask-log":
+                    askLogPath = args[++i];
+                    break;
                 default:
                     if (args[i].startsWith("--")) {
                         System.err.println("Unknown option: " + args[i]);
@@ -115,6 +131,8 @@ public class GausVibeServer {
         server.createContext("/query", new QueryHandler());
         server.createContext("/stats", new StatsHandler());
         server.createContext("/search", new SearchHandler());
+        server.createContext("/ask", new AskHandler());
+        server.createContext("/feedback", new FeedbackHandler());
         server.createContext("/classes/", new ClassDetailHandler());
     }
     
@@ -233,6 +251,8 @@ public class GausVibeServer {
             endpoints.put("GET /query?q=QUERY", "Execute query");
             endpoints.put("GET /stats", "Graph statistics");
             endpoints.put("GET /search?q=NAME", "Search by name");
+            endpoints.put("GET /ask?q=QUESTION", "Ask a high-level question in plain language");
+            endpoints.put("POST /feedback", "Rate an /ask answer (helpful, wrong, incomplete, too-big, other)");
             info.put("endpoints", endpoints);
             
             return toJson(info);
@@ -740,6 +760,404 @@ public class GausVibeServer {
         }
     }
     
+    /**
+     * Natural-language question endpoint.
+     *
+     * Accepts a high-level question about the codebase and answers it with
+     * the graph. Every question - answered or not - is appended to the ask
+     * log, so the distribution of questions the harness asks becomes
+     * measurable data for designing the query index.
+     */
+    static class AskHandler extends BaseHandler {
+
+        private static final int MAX_LINES = 50;
+
+        private static final Set<String> STOP_WORDS = Set.of(
+            "who", "what", "where", "which", "when", "how", "why",
+            "the", "a", "an", "of", "in", "on", "at", "to", "for", "with", "by",
+            "is", "are", "was", "were", "do", "does", "did", "can", "could",
+            "call", "calls", "caller", "callers", "calling", "called",
+            "class", "classes", "method", "methods", "field", "fields",
+            "implement", "implements", "implementation", "implementations",
+            "subclass", "subclasses", "superclass", "extends", "override",
+            "overrides", "overridden", "interface", "interfaces",
+            "test", "tests", "testing", "testsuite",
+            "find", "list", "all", "show", "get", "give", "me", "tell",
+            "live", "lives", "defined", "define", "declared", "declare",
+            "located", "locate", "location", "file", "files",
+            "this", "that", "these", "those", "it", "its", "and", "or",
+            "any", "many", "much", "please", "code", "codebase", "project",
+            "java", "graph", "server", "question", "about", "used", "uses",
+            "usages", "usage", "references", "referenced", "reference",
+            "members", "member", "variables", "variable", "static", "public",
+            "private", "protected", "signature", "signatures", "type", "types"
+        );
+
+        @Override
+        protected String handleRequest(HttpExchange exchange) {
+            String raw = getQueryParams(exchange.getRequestURI().getQuery()).get("q");
+            if (raw == null || raw.isEmpty()) {
+                return responseJson(400, Map.of("error", "Missing 'q' parameter"));
+            }
+
+            String question;
+            try {
+                question = java.net.URLDecoder.decode(raw, StandardCharsets.UTF_8);
+            } catch (IllegalArgumentException e) {
+                return responseJson(400, Map.of("error", "Malformed query encoding"));
+            }
+
+            Map<String, Object> result = answerQuestion(question);
+            String json = toJson(result);
+
+            if (questionLogger != null) {
+                questionLogger.log(question,
+                    (String) result.get("matched"),
+                    json.length(),
+                    true);
+            }
+            return json;
+        }
+
+        /**
+         * Routes the question to a graph query.
+         * Returns a map with "question", "matched" (or null), "answer" and "count".
+         */
+        private Map<String, Object> answerQuestion(String question) {
+            String lower = question.toLowerCase();
+            List<String> candidates = extractIdentifiers(question);
+
+            String classFqn = resolveClass(candidates);
+            String methodName = resolveMethod(candidates);
+
+            if (lower.contains("implement")) {
+                return classQuery(question, classFqn, "implementations",
+                    "No class or interface name found in the question");
+            }
+            if (lower.contains("subclass") || lower.contains("extends")) {
+                return classQuery(question, classFqn, "subclasses",
+                    "No class name found in the question");
+            }
+            if (lower.contains("call")) {
+                return callersQuery(question, methodName);
+            }
+            if (lower.contains("method")) {
+                return classQuery(question, classFqn, "methods",
+                    "No class name found in the question");
+            }
+            if (lower.contains("field") || lower.contains("variable") || lower.contains("member")) {
+                return classQuery(question, classFqn, "fields",
+                    "No class name found in the question");
+            }
+            if (lower.contains("where") || lower.contains("defined") || lower.contains("declared")
+                || lower.contains("live") || lower.contains("located") || lower.contains("location")) {
+                return locationQuery(question, classFqn, methodName);
+            }
+
+            // Fallback: name search
+            if (classFqn != null) {
+                return classQuery(question, classFqn, "class-detail", null);
+            }
+            if (methodName != null) {
+                return methodQuery(question, methodName);
+            }
+            return unmatched(question, candidates);
+        }
+
+        private List<String> extractIdentifiers(String question) {
+            List<String> tokens = new ArrayList<>();
+            for (String part : question.split("[^A-Za-z0-9._]+")) {
+                if (part == null || part.isEmpty()) continue;
+                for (String tok : part.split("\\.")) {
+                    if (tok == null || tok.isEmpty()) continue;
+                    String t = tok.trim();
+                    if (t.length() >= 2 && !STOP_WORDS.contains(t.toLowerCase())) {
+                        tokens.add(t);
+                    }
+                }
+            }
+            return tokens;
+        }
+
+        /** First candidate that resolves to a class, by simple or qualified name. */
+        private String resolveClass(List<String> candidates) {
+            for (String c : candidates) {
+                if (c.indexOf('.') >= 0) {
+                    if (queryEngine.findClassByQualifiedName(c).isPresent()) return c;
+                }
+                List<ClassNode> classes = queryEngine.findClassesByName(c);
+                if (!classes.isEmpty()) {
+                    return classes.get(0).getQualifiedName();
+                }
+            }
+            return null;
+        }
+
+        /** First candidate that resolves to a method name. */
+        private String resolveMethod(List<String> candidates) {
+            for (String c : candidates) {
+                if (c.indexOf('.') >= 0) continue;
+                if (!queryEngine.findMethodsByName(c).isEmpty()) return c;
+            }
+            return null;
+        }
+
+        private Map<String, Object> classQuery(String question, String classFqn,
+                                               String kind, String missingMsg) {
+            if (classFqn == null) {
+                return unmatched(question, null, missingMsg);
+            }
+            Optional<ClassNode> cls = queryEngine.findClassByQualifiedName(classFqn);
+            if (cls.isEmpty()) {
+                return unmatched(question, null, "Class not found: " + classFqn);
+            }
+            ClassNode c = cls.get();
+            StringBuilder sb = new StringBuilder();
+            int count;
+            switch (kind) {
+                case "implementations" -> {
+                    List<ClassNode> impls = queryEngine.getImplementations(c);
+                    count = impls.size();
+                    sb.append("Implementations of ").append(classFqn).append(" (")
+                      .append(count).append("):\n");
+                    appendClassLines(sb, impls);
+                }
+                case "subclasses" -> {
+                    List<ClassNode> subs = queryEngine.getSubclasses(c);
+                    count = subs.size();
+                    sb.append("Subclasses of ").append(classFqn).append(" (")
+                      .append(count).append("):\n");
+                    appendClassLines(sb, subs);
+                }
+                case "methods" -> {
+                    List<MethodNode> methods = queryEngine.getMethods(c);
+                    count = methods.size();
+                    sb.append("Methods of ").append(classFqn).append(" (")
+                      .append(count).append("):\n");
+                    appendMethodLines(sb, methods);
+                }
+                case "fields" -> {
+                    List<FieldNode> fields = queryEngine.getFields(c);
+                    count = fields.size();
+                    sb.append("Fields of ").append(classFqn).append(" (")
+                      .append(count).append("):\n");
+                    appendFieldLines(sb, fields);
+                }
+                default -> {
+                    count = 1;
+                    sb.append("Class ").append(classFqn).append(":\n");
+                    sb.append("  File: ").append(c.getFile()).append("\n");
+                    if (c.hasSuperclass()) {
+                        sb.append("  Superclass: ").append(c.getSuperclass()).append("\n");
+                    }
+                    if (!c.getInterfaces().isEmpty()) {
+                        sb.append("  Interfaces: ").append(String.join(", ", c.getInterfaces())).append("\n");
+                    }
+                    sb.append("  Methods: ").append(queryEngine.getMethods(c).size())
+                      .append(", Fields: ").append(queryEngine.getFields(c).size()).append("\n");
+                }
+            }
+            return matched(question, kind, sb.toString(), count);
+        }
+
+        private Map<String, Object> callersQuery(String question, String methodName) {
+            if (methodName == null) {
+                return unmatched(question, null, "No method name found in the question");
+            }
+            List<MethodNode> methods = queryEngine.findMethodsByName(methodName);
+            StringBuilder sb = new StringBuilder();
+            int total = 0;
+            sb.append("Callers of methods named '").append(methodName).append("':\n");
+            for (MethodNode m : methods) {
+                List<MethodNode> callers = queryEngine.getCallers(m);
+                sb.append("  ").append(m.getSignature()).append(" <- ")
+                  .append(callers.size()).append(" caller(s)\n");
+                for (int i = 0; i < Math.min(callers.size(), MAX_LINES); i++) {
+                    MethodNode caller = callers.get(i);
+                    sb.append("    - ").append(caller.getQualifiedName());
+                    if (caller.getFile() != null) {
+                        sb.append("  [").append(caller.getFile()).append("]");
+                    }
+                    sb.append("\n");
+                }
+                total += callers.size();
+            }
+            if (methods.isEmpty()) {
+                return unmatched(question, null, "No method found named: " + methodName);
+            }
+            return matched(question, "callers", sb.toString(), total);
+        }
+
+        private Map<String, Object> locationQuery(String question, String classFqn, String methodName) {
+            if (classFqn != null) {
+                return classQuery(question, classFqn, "class-location", null);
+            }
+            if (methodName != null) {
+                return methodQuery(question, methodName);
+            }
+            return unmatched(question, null, "No class or method name found in the question");
+        }
+
+        private Map<String, Object> methodQuery(String question, String methodName) {
+            List<MethodNode> methods = queryEngine.findMethodsByName(methodName);
+            if (methods.isEmpty()) {
+                return unmatched(question, null, "No method found named: " + methodName);
+            }
+            StringBuilder sb = new StringBuilder();
+            sb.append("Methods named '").append(methodName).append("' (")
+              .append(methods.size()).append("):\n");
+            appendMethodLines(sb, methods);
+            return matched(question, "method-location", sb.toString(), methods.size());
+        }
+
+        private void appendClassLines(StringBuilder sb, List<ClassNode> classes) {
+            int count = Math.min(classes.size(), MAX_LINES);
+            for (int i = 0; i < count; i++) {
+                ClassNode c = classes.get(i);
+                sb.append("  - ").append(c.getQualifiedName());
+                if (c.getFile() != null) {
+                    sb.append("  [").append(c.getFile()).append("]");
+                }
+                sb.append("\n");
+            }
+            if (classes.size() > count) {
+                sb.append("  ... and ").append(classes.size() - count).append(" more\n");
+            }
+        }
+
+        private void appendMethodLines(StringBuilder sb, List<MethodNode> methods) {
+            int count = Math.min(methods.size(), MAX_LINES);
+            for (int i = 0; i < count; i++) {
+                MethodNode m = methods.get(i);
+                sb.append("  - ").append(m.getSignature());
+                if (m.getFile() != null) {
+                    sb.append("  [").append(m.getFile()).append("]");
+                }
+                sb.append("\n");
+            }
+            if (methods.size() > count) {
+                sb.append("  ... and ").append(methods.size() - count).append(" more\n");
+            }
+        }
+
+        private void appendFieldLines(StringBuilder sb, List<FieldNode> fields) {
+            int count = Math.min(fields.size(), MAX_LINES);
+            for (int i = 0; i < count; i++) {
+                FieldNode f = fields.get(i);
+                sb.append("  - ").append(f.getQualifiedName()).append(": ").append(f.getDataType());
+                if (f.getFile() != null) {
+                    sb.append("  [").append(f.getFile()).append("]");
+                }
+                sb.append("\n");
+            }
+            if (fields.size() > count) {
+                sb.append("  ... and ").append(fields.size() - count).append(" more\n");
+            }
+        }
+
+        private Map<String, Object> matched(String question, String kind, String answer, int count) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("question", question);
+            result.put("matched", kind);
+            result.put("count", count);
+            result.put("answer", answer);
+            return result;
+        }
+
+        private Map<String, Object> unmatched(String question, List<String> candidates) {
+            return unmatched(question, candidates, null);
+        }
+
+        private Map<String, Object> unmatched(String question, List<String> candidates, String reason) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("question", question);
+            result.put("matched", null);
+            result.put("count", 0);
+            if (reason != null) {
+                result.put("reason", reason);
+            }
+            if (candidates != null && !candidates.isEmpty()) {
+                result.put("identifiers", candidates);
+            }
+            result.put("hint", "No graph query matched this question. " +
+                "Available: /classes, /classes/{fqn}, /classes/{fqn}/methods, " +
+                "/classes/{fqn}/subclasses, /classes/{fqn}/implementations, " +
+                "/methods, /packages, /search?q=NAME. " +
+                "Fall back to other tools (grep/read) for anything else.");
+            return result;
+        }
+    }
+
+    /**
+     * Feedback endpoint for the harness to rate /ask answers.
+     *
+     * Accepts POST with a JSON body, or GET with query params:
+     *   question (required), matched (optional), rating (required),
+     *   comment (optional).
+     * Ratings: helpful, wrong, incomplete, too-big, other.
+     * Every entry is appended to the feedback log next to the ask log.
+     */
+    static class FeedbackHandler extends BaseHandler {
+        @Override
+        protected String handleRequest(HttpExchange exchange) throws Exception {
+            String question = null;
+            String matched = null;
+            String rating = null;
+            String comment = null;
+            
+            Map<String, String> params = getQueryParams(exchange.getRequestURI().getQuery());
+            if ("POST".equalsIgnoreCase(exchange.getRequestMethod()) && params.isEmpty()) {
+                String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                Map<String, String> bodyParams = parseSimpleJson(body);
+                if (!bodyParams.isEmpty()) {
+                    params = bodyParams;
+                }
+            }
+            
+            question = params.get("question");
+            matched = params.get("matched");
+            rating = params.get("rating");
+            comment = params.get("comment");
+            
+            if (question == null || question.isEmpty() || rating == null || rating.isEmpty()) {
+                return responseJson(400, Map.of(
+                    "error", "Missing 'question' and 'rating' parameters",
+                    "ratings", "helpful, wrong, incomplete, too-big, other"));
+            }
+            
+            if (questionLogger != null) {
+                questionLogger.logFeedback(question, matched, rating, comment);
+            }
+            
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("logged", true);
+            result.put("question", question);
+            result.put("rating", rating);
+            return toJson(result);
+        }
+        
+        /**
+         * Parses a flat JSON object with string values.
+         */
+        private Map<String, String> parseSimpleJson(String body) {
+            Map<String, String> map = new LinkedHashMap<>();
+            if (body == null || body.isBlank() || !body.trim().startsWith("{")) {
+                return map;
+            }
+            try {
+                com.google.gson.JsonObject obj = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+                for (var entry : obj.entrySet()) {
+                    if (entry.getValue().isJsonPrimitive()) {
+                        map.put(entry.getKey(), entry.getValue().getAsString());
+                    }
+                }
+            } catch (Exception ignored) {
+                // fall through to query-param handling
+            }
+            return map;
+        }
+    }
+
     static class SearchHandler extends BaseHandler {
         @Override
         protected String handleRequest(HttpExchange exchange) {

@@ -148,7 +148,16 @@ public class GraphQueryEngine implements JavaGraphQuery {
             return Optional.empty();
         }
         
-        return indexes.getClassByQualifiedName(clazz.getSuperclass());
+        Optional<ClassNode> byFqn = indexes.getClassByQualifiedName(clazz.getSuperclass());
+        if (byFqn.isPresent()) {
+            return byFqn;
+        }
+        // tolerate unresolved simple names: unique match by name
+        List<ClassNode> byName = indexes.getClassesByName(clazz.getSuperclass());
+        if (byName.size() == 1) {
+            return Optional.of(byName.get(0));
+        }
+        return Optional.empty();
     }
     
     @Override
@@ -159,7 +168,17 @@ public class GraphQueryEngine implements JavaGraphQuery {
         
         List<ClassNode> interfaces = new ArrayList<>();
         for (String ifaceFqn : clazz.getInterfaces()) {
-            indexes.getClassByQualifiedName(ifaceFqn).ifPresent(interfaces::add);
+            Optional<ClassNode> byFqn = indexes.getClassByQualifiedName(ifaceFqn);
+            if (byFqn.isPresent()) {
+                interfaces.add(byFqn.get());
+                continue;
+            }
+            String simple = ifaceFqn.contains(".")
+                ? ifaceFqn.substring(ifaceFqn.lastIndexOf('.') + 1) : ifaceFqn;
+            List<ClassNode> byName = indexes.getClassesByName(simple);
+            if (byName.size() == 1) {
+                interfaces.add(byName.get(0));
+            }
         }
         return interfaces;
     }
@@ -622,6 +641,20 @@ public class GraphQueryEngine implements JavaGraphQuery {
     }
     
     /**
+     * Checks if a stored type name refers to the given class.
+     * Tolerates simple names and package-qualified variants, since types
+     * outside the project may be stored unresolved.
+     */
+    private boolean typeRefersToClass(String stored, ClassNode target) {
+        if (stored == null || target == null) {
+            return false;
+        }
+        String fqn = target.getQualifiedName();
+        String simple = target.getName();
+        return stored.equals(fqn) || stored.equals(simple);
+    }
+    
+    /**
      * Checks if a class has the given superclass (directly or indirectly).
      */
     private boolean hasSuperclass(ClassNode clazz, ClassNode superclass) {
@@ -634,7 +667,7 @@ public class GraphQueryEngine implements JavaGraphQuery {
         }
         
         // Check direct superclass
-        if (clazz.hasSuperclass() && clazz.getSuperclass().equals(superclass.getQualifiedName())) {
+        if (clazz.hasSuperclass() && typeRefersToClass(clazz.getSuperclass(), superclass)) {
             return true;
         }
         
@@ -663,7 +696,7 @@ public class GraphQueryEngine implements JavaGraphQuery {
         
         // Check direct interfaces
         for (String ifaceFqn : clazz.getInterfaces()) {
-            if (ifaceFqn.equals(iface.getQualifiedName())) {
+            if (typeRefersToClass(ifaceFqn, iface)) {
                 return true;
             }
         }

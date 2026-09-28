@@ -60,7 +60,7 @@ public class ClassNode extends DeclarationNode {
     
     @Override
     public String getType() {
-        return Node.TYPE_CLASS;
+        return isInterface ? Node.TYPE_INTERFACE : Node.TYPE_CLASS;
     }
     
     /**

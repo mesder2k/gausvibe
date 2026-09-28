@@ -181,3 +181,54 @@
 **How**: Build a semantic dependency graph mapping code to tests via imports, calls, and data flow. On each change, traverse the graph from modified nodes to find affected tests. Cache test results for unchanged subgraphs to avoid re-running.
 
 **Is this idea simply too bad**: No — this is practical and builds on existing work (Bazel, Nx, Turbo) but with deeper semantic analysis.
+
+---
+
+## Flip the Script: GausVibe as the Orchestrator
+
+**Scope**: Read-only codebase questions. No fixes, no edits, no write mode — just high-level questions answered with multi-step reasoning over the graph.
+
+**Why it matters**: Today the flow is inverted — an external LLM decomposes high-level questions and calls GausVibe as a low-level tool (find symbol, list callers), gets results back, and continues. The LLM owns the reasoning; GausVibe is just a lookup. The flip: a human (or thin client) asks GausVibe a very high-level question about the codebase directly, and GausVibe does the decomposition itself, driving an LLM plus its own tools to produce an answer.
+
+**Pro**: GausVibe has the structural knowledge (call graphs, dependencies, semantic index) that external LLMs lack, so it is better positioned to plan the decomposition. Removes the lossy round-trips of shipping the whole code graph through an external context window. The same entry point serves humans and LLM callers alike. Read-only scope means no risk of mutations — a wrong answer is a bad answer, not a broken codebase.
+
+**Con**: Requires GausVibe to become an agent, not a server — planning, tool selection, self-verification, and recovery from failed sub-questions. Harder to debug and trust than a stateless query API. Risk of the decomposition engine making worse decisions than a strong external model.
+
+**How**: Expose a single question endpoint that internally plans: decompose the question into sub-questions, call its own graph tools for structural facts, and call an LLM for the reasoning-heavy steps. Verify each step against the graph before continuing, and return a trace of the decomposition so the answer is auditable. Keep the external-LLM flow as a compatibility mode and fallback when the internal planner is uncertain.
+
+**Is this idea simply too bad**: No — it is the natural evolution of the tool: the graph owns the plan, the LLM owns the prose.
+
+---
+
+## Multi-Language GausVibe (Go, Rust, ...)
+
+**Why it matters**: GausVibe's graph is built from Java classfiles today — the extractor is welded to the JVM. If the orchestrator flip works, the planning layer above the graph is language-agnostic by construction: it only sees nodes and edges. The language-specific work is only the extraction layer, which means every new language frontend instantly inherits the whole query/planning stack.
+
+**Pro**: The graph schema (symbols, types, calls, implements, imports, containment) is already language-neutral. Each new frontend is additive — no rework of the server, tools, or (eventually) the planner. Go and Rust both have excellent native semantic tooling to build on.
+
+**Con**: Every language has its own dependency-resolution reality (classpath, Go modules, Cargo workspaces), and each frontend must resolve dependencies the way the native toolchain does or the graph lies. Rust in particular fights you: generics/monomorphization mean the "call graph" depends on instantiation, and macros hide real symbols.
+
+**How**: Three rules, then per-language ideas.
+
+1. **Language-neutral schema, pluggable producers.** Frontends emit (node, edge) facts into the same graph; the server and planner never see Java-isms. Java stays the reference frontend.
+2. **Native semantic tooling over generic parsing.** Type-checked facts beat syntax-level guesses. Tree-sitter (or similar) is the fallback tier for languages without semantic tooling, not the default.
+3. **Tiered extraction.** Tier 1: name/reference resolution (syntax, fast, approximate). Tier 2: type-checked facts (native compiler APIs, slower, trustworthy). Tier 3 (later): runtime facts from profiling/telemetry.
+
+**Go ideas**:
+
+- The standard library gives you most of a frontend for free: `golang.org/x/tools/go/packages` + `go/types` produce a fully type-checked AST — symbols, signatures, import graph, and call sites without inventing a parser.
+- Call graphs via `x/tools/go/ssad` (CHA/RTA) for "who calls this," plus `go doc`-style symbol dumps for the index.
+- Dependency resolution is trivial compared to Java: Go modules are declarative and `go list -json` hands you the entire package graph.
+- Could ship as a small Go binary that dumps facts to GausVibe — no need to rewrite extraction in Java.
+
+**Rust ideas**:
+
+- `rustdoc --output-format json` (nightly) gives the complete API surface of a crate — every item, signature, and path — as structured data. Cheap, accurate Tier 2 facts.
+- rust-analyzer's crates (`ra-ap-*` plus `salsa`) are a reusable semantic engine: call hierarchy, find-references, type info. Heavy to embed, but it's what powers IDE-grade answers.
+- `syn` for a fast source-level Tier 1 pass when building the full toolchain in is too slow.
+- Resolve generics the way the language does: index the generic definition and its monomorphized instantiations as separate nodes with an "instantiates" edge, so call-graph questions can answer at either level of specificity.
+- Cargo workspaces replace classpath: `cargo metadata --format-version 1` gives the dependency/target graph up front.
+
+**Sequencing idea**: do Go second, Rust third. Go's tooling makes a frontend a week-scale experiment; Rust's generics and macros make it the hardest of the three. Proving the schema is truly language-neutral on the *easiest* second language de-risks the whole generalization story before tackling the hard one.
+
+**Is this idea simply too bad**: No — the per-language work is bounded and each frontend amortizes across everything built above the graph.

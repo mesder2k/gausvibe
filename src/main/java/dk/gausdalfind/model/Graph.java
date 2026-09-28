@@ -11,8 +11,10 @@ import java.util.*;
  */
 public class Graph {
     
-    private final Map<String, Node> nodes = new LinkedHashMap<>();
-    private final List<Edge> edges = new ArrayList<>();
+    // Thread-safe: the parallel graph builder adds nodes and edges from
+    // multiple parser threads.
+    private final Map<String, Node> nodes = new java.util.concurrent.ConcurrentHashMap<>();
+    private final List<Edge> edges = Collections.synchronizedList(new ArrayList<>());
     private final Indexes indexes = new Indexes();
     
     // ==================== Node Management ====================
@@ -30,11 +32,13 @@ public class Graph {
         }
         
         String id = node.getId();
-        if (nodes.containsKey(id)) {
+        // Atomic check-and-put: two threads adding the same ID must not
+        // both index the node
+        Node existing = nodes.putIfAbsent(id, node);
+        if (existing != null) {
             return false; // Node already exists
         }
         
-        nodes.put(id, node);
         indexes.index(node);
         return true;
     }

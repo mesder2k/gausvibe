@@ -46,6 +46,10 @@ public class GausVibeBuilder {
     private long parseStartTime;
     private long parseEndTime;
     
+    // Call sites recorded during parsing, resolved after all files are parsed
+    private final List<VisitorContext.CallRecord> pendingCalls =
+        Collections.synchronizedList(new ArrayList<>());
+    
     /**
      * Creates a new graph builder for the given project root.
      * 
@@ -130,6 +134,9 @@ public class GausVibeBuilder {
             // Phase 4: Resolve symbols
             SymbolResolver resolver = new SymbolResolver(graph, symbolTable);
             resolver.resolve();
+            
+            // Phase 4.5: Resolve recorded call sites into CALLS edges
+            resolveCallSites();
             
             // Phase 5: Add derived edges
             addDerivedEdges();
@@ -226,8 +233,19 @@ public class GausVibeBuilder {
      */
     private void parseFile(Path file) {
         try {
-            // Parse the file
-            CompilationUnit cu = StaticJavaParser.parse(file);
+            // Parse the file with an explicitly configured parser (the shared
+            // static configuration is not reliably visible to parallel
+            // worker threads)
+            com.github.javaparser.ParseResult<CompilationUnit> parseResult =
+                JavaParserConfig.newParser().parse(file);
+            if (!parseResult.isSuccessful() || parseResult.getResult().isEmpty()) {
+                throw new IOException("parse errors: "
+                    + parseResult.getProblems().stream()
+                        .map(p -> String.valueOf(p.getMessage()))
+                        .limit(3)
+                        .collect(java.util.stream.Collectors.joining("; ")));
+            }
+            CompilationUnit cu = parseResult.getResult().get();
             
             // Create visitor context for this file
             VisitorContext context = new VisitorContext(file, graph);
@@ -259,10 +277,17 @@ public class GausVibeBuilder {
                 processTypeDeclaration(typeDecl, context);
             }
             
+            // Harvest call sites recorded by the expression visitor
+            pendingCalls.addAll(context.getRecordedCalls());
+            
             filesParsed++;
             
         } catch (Exception e) {
-            System.err.println("Error parsing file " + file + ": " + e.getMessage());
+            // Log the exception type and cause, not just getMessage():
+            // NPEs have a null message and silently hid real failures before
+            String cause = e.getCause() != null ? " (cause: " + e.getCause() + ")" : "";
+            System.err.println("Error parsing file " + file + ": " + e.getClass().getSimpleName()
+                + ": " + e.getMessage() + cause);
             filesFailed++;
         }
     }
@@ -275,6 +300,8 @@ public class GausVibeBuilder {
             processClassOrInterface((com.github.javaparser.ast.body.ClassOrInterfaceDeclaration) typeDecl, context);
         } else if (typeDecl instanceof com.github.javaparser.ast.body.EnumDeclaration) {
             processEnum((com.github.javaparser.ast.body.EnumDeclaration) typeDecl, context);
+        } else if (typeDecl instanceof com.github.javaparser.ast.body.RecordDeclaration) {
+            processRecord((com.github.javaparser.ast.body.RecordDeclaration) typeDecl, context);
         } else if (typeDecl instanceof com.github.javaparser.ast.body.AnnotationDeclaration) {
             processAnnotation((com.github.javaparser.ast.body.AnnotationDeclaration) typeDecl, context);
         }
@@ -287,7 +314,6 @@ public class GausVibeBuilder {
         // Use NodeFactory to create the class node
         NodeFactory nodeFactory = new NodeFactory(graph, context);
         ClassNode classNode = nodeFactory.createClass(classDecl);
-        
         if (classNode == null) {
             return;
         }
@@ -370,7 +396,9 @@ public class GausVibeBuilder {
         methodDecl.getBody().ifPresent(body -> {
             // Push method context
             String oldMethod = context.getCurrentMethod();
+            String oldMethodId = context.getCurrentMethodId();
             context.setCurrentMethod(methodNode.getQualifiedName() + "#" + methodNode.getSignature());
+            context.setCurrentMethodId(methodNode.getId());
             
             // Process parameters
             int paramIndex = 0;
@@ -391,7 +419,50 @@ public class GausVibeBuilder {
             
             // Restore method context
             context.setCurrentMethod(oldMethod);
+            context.setCurrentMethodId(oldMethodId);
         });
+    }
+    
+    /**
+     * Processes a record declaration. Records are modeled as class nodes;
+     * their components are not parameter nodes but methods/fields are
+     * processed as regular members.
+     */
+    private void processRecord(com.github.javaparser.ast.body.RecordDeclaration recordDecl, VisitorContext context) {
+        String name = recordDecl.getName().toString();
+        String qualifiedName = context.getCurrentPackage() != null && !context.getCurrentPackage().isBlank()
+            ? context.getCurrentPackage() + "." + name : name;
+        // Nested records use the enclosing class prefix
+        if (context.getCurrentClass() != null && !context.getCurrentClass().isBlank()) {
+            qualifiedName = context.getCurrentClass() + "$" + name;
+        }
+        
+        Set<String> modifiers = new HashSet<>();
+        recordDecl.getModifiers().forEach(m -> modifiers.add(m.toString()));
+        
+        ClassNode recordNode = new ClassNode(
+            NodeIdGenerator.forDeclaration(NodeIdGenerator.NodeType.CLASS, qualifiedName),
+            name, qualifiedName, modifiers, "java.lang.Record", List.of(),
+            false, false, context.getCurrentFile(),
+            Position.fromJavaParser(recordDecl.getBegin().orElse(null)),
+            Position.fromJavaParser(recordDecl.getEnd().orElse(null))
+        );
+        
+        if (!graph.addNode(recordNode)) {
+            return;
+        }
+        symbolTable.register(recordNode);
+        
+        // Process members (methods, fields, nested types)
+        NodeFactory nodeFactory = new NodeFactory(graph, context);
+        EdgeFactory edgeFactory = new EdgeFactory(graph, context);
+        
+        String oldClass = context.getCurrentClass();
+        context.setCurrentClass(qualifiedName);
+        for (var member : recordDecl.getMembers()) {
+            processClassMember(member, context, nodeFactory, edgeFactory, recordNode);
+        }
+        context.setCurrentClass(oldClass);
     }
     
     /**
@@ -463,6 +534,124 @@ public class GausVibeBuilder {
     }
     
     // ==================== Derived Edges ====================
+    
+    /**
+     * Resolves the call sites recorded during parsing into CALLS edges.
+     * Runs after all files are parsed, so the full class graph is available.
+     */
+    private void resolveCallSites() {
+        Indexes indexes = graph.getIndexes();
+        Set<String> createdEdges = new HashSet<>();
+        int resolved = 0;
+        
+        List<VisitorContext.CallRecord> records;
+        synchronized (pendingCalls) {
+            records = new ArrayList<>(pendingCalls);
+        }
+        
+        // Precompute class FQN -> method name -> methods, and method name ->
+        // methods, so per-record resolution is a map lookup instead of
+        // scanning every same-named method in the project.
+        Map<String, Map<String, List<MethodNode>>> methodsByClass = new HashMap<>();
+        Map<String, List<MethodNode>> methodsByNameGlobal = new HashMap<>();
+        for (MethodNode m : indexes.getAllMethods()) {
+            String cls = m.getClassName();
+            if (cls != null && !cls.isBlank()) {
+                methodsByClass.computeIfAbsent(cls, k -> new HashMap<>())
+                    .computeIfAbsent(m.getName(), k -> new ArrayList<>())
+                    .add(m);
+            }
+            methodsByNameGlobal.computeIfAbsent(m.getName(), k -> new ArrayList<>())
+                .add(m);
+        }
+        
+        for (VisitorContext.CallRecord rec : records) {
+            for (MethodNode callee : resolveCallee(rec, indexes, methodsByClass, methodsByNameGlobal)) {
+                String key = rec.callerMethodId + "|" + callee.getId();
+                if (!createdEdges.add(key)) {
+                    continue;
+                }
+                // Skip records whose endpoints are missing from the graph
+                // (e.g. methods in files that failed to parse)
+                if (graph.getNode(rec.callerMethodId).isEmpty()
+                    || graph.getNode(callee.getId()).isEmpty()) {
+                    continue;
+                }
+                graph.addEdge(new Edge(
+                    rec.callerMethodId, callee.getId(), EdgeTypes.CALLS, Map.of()));
+                resolved++;
+            }
+        }
+        
+        if (!records.isEmpty()) {
+            System.out.println("Resolved " + resolved + "/" + records.size()
+                + " call sites into CALLS edges");
+        }
+    }
+    
+    /**
+     * Resolves one recorded call site to callee method nodes.
+     */
+    private List<MethodNode> resolveCallee(VisitorContext.CallRecord rec, Indexes indexes,
+                                           Map<String, Map<String, List<MethodNode>>> methodsByClass,
+                                           Map<String, List<MethodNode>> methodsByNameGlobal) {
+        List<MethodNode> callees = new ArrayList<>();
+        
+        List<String> candidateClassFqns = new ArrayList<>();
+        if (rec.receiverType != null && !rec.receiverType.isBlank()) {
+            String typeName = rec.receiverType.replaceAll("<[^<>]*>", "")
+                                              .replaceAll("\\[\\]", "").trim();
+            if (typeName.contains(".")) {
+                indexes.getClassByQualifiedName(typeName)
+                    .ifPresent(c -> candidateClassFqns.add(c.getQualifiedName()));
+            } else {
+                List<ClassNode> byName = indexes.getClassesByName(typeName);
+                if (byName.size() > 1 && rec.callerClassFqn != null) {
+                    // prefer same-package matches
+                    String pkg = rec.callerClassFqn.contains(".")
+                        ? rec.callerClassFqn.substring(0, rec.callerClassFqn.lastIndexOf('.'))
+                        : "";
+                    List<ClassNode> samePkg = new ArrayList<>();
+                    for (ClassNode c : byName) {
+                        if (pkg.equals(c.getPackageName())) {
+                            samePkg.add(c);
+                        }
+                    }
+                    if (!samePkg.isEmpty()) {
+                        byName = samePkg;
+                    }
+                }
+                for (ClassNode c : byName) {
+                    candidateClassFqns.add(c.getQualifiedName());
+                }
+            }
+        } else if (rec.callerClassFqn != null) {
+            // unqualified call: own class first
+            indexes.getClassByQualifiedName(rec.callerClassFqn)
+                .ifPresent(c -> candidateClassFqns.add(c.getQualifiedName()));
+        }
+        
+        for (String classFqn : candidateClassFqns) {
+            Map<String, List<MethodNode>> byName = methodsByClass.get(classFqn);
+            if (byName != null) {
+                List<MethodNode> methods = byName.get(rec.methodName);
+                if (methods != null) {
+                    callees.addAll(methods);
+                }
+            }
+        }
+        
+        // Fallback: if nothing matched but exactly one method with this
+        // name exists project-wide, resolve to it (handles unresolved receivers).
+        if (callees.isEmpty()) {
+            List<MethodNode> byName = methodsByNameGlobal.get(rec.methodName);
+            if (byName != null && byName.size() == 1) {
+                callees.add(byName.get(0));
+            }
+        }
+        
+        return callees;
+    }
     
     /**
      * Adds derived edges that can be inferred from the graph structure.
