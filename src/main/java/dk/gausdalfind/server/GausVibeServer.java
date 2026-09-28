@@ -788,7 +788,7 @@ public class GausVibeServer {
      * log, so the distribution of questions the harness asks becomes
      * measurable data for designing the query index.
      */
-    static class AskHandler extends BaseHandler {
+    public static class AskHandler extends BaseHandler {
 
         private static final int MAX_LINES = 50;
 
@@ -850,15 +850,17 @@ public class GausVibeServer {
             String lower = question.toLowerCase();
             List<String> candidates = extractIdentifiers(question);
 
-            String classFqn = resolveClass(candidates);
-            String methodName = resolveMethod(candidates);
+            ClassResolution resolution = resolveClass(candidates, queryEngine);
+            String classFqn = resolution.fqn();
+            String methodName = resolveMethod(candidates, queryEngine);
+            MethodNode fuzzyMethod = resolveMethodFuzzy(candidates, queryEngine);
 
             if (lower.contains("implement")) {
-                return classQuery(question, classFqn, "implementations",
+                return classQuery(question, resolution, "implementations",
                     "No class or interface name found in the question");
             }
             if (lower.contains("subclass") || lower.contains("extends")) {
-                return classQuery(question, classFqn, "subclasses",
+                return classQuery(question, resolution, "subclasses",
                     "No class name found in the question");
             }
             if (lower.contains("call")) {
@@ -877,69 +879,162 @@ public class GausVibeServer {
                 return testsQuery(question, candidates);
             }
             if (lower.contains("method")) {
-                return classQuery(question, classFqn, "methods",
+                return classQuery(question, resolution, "methods",
                     "No class name found in the question");
             }
             if (lower.contains("field") || lower.contains("variable") || lower.contains("member")) {
-                return classQuery(question, classFqn, "fields",
+                return classQuery(question, resolution, "fields",
                     "No class name found in the question");
             }
             if (lower.contains("where") || lower.contains("defined") || lower.contains("declared")
                 || lower.contains("live") || lower.contains("located") || lower.contains("location")) {
-                return locationQuery(question, classFqn, methodName);
+                return locationQuery(question, resolution, methodName, fuzzyMethod);
             }
 
             // Fallback: name search
             if (classFqn != null) {
-                return classQuery(question, classFqn, "class-detail", null);
+                return classQuery(question, resolution, "class-detail", null);
             }
             if (methodName != null) {
                 return methodQuery(question, methodName);
             }
+            if (fuzzyMethod != null) {
+                return methodDetailQuery(question, fuzzyMethod);
+            }
             return unmatched(question, candidates);
         }
 
-        private List<String> extractIdentifiers(String question) {
+        /**
+         * Result of resolving a class from question identifiers: the fqn
+         * when resolved, or the candidate list when ambiguous.
+         */
+        public record ClassResolution(String fqn, List<String> ambiguous) {}
+
+        /**
+         * Extracts identifier tokens from the question. Dotted sequences
+         * ("org.elasticsearch.common.Strings") are kept whole so fully
+         * qualified references resolve exactly instead of degenerating
+         * into package-segment noise.
+         */
+        public static List<String> extractIdentifiers(String question) {
             List<String> tokens = new ArrayList<>();
-            for (String part : question.split("[^A-Za-z0-9._]+")) {
+            for (String part : question.split("[^A-Za-z0-9._$]+")) {
                 if (part == null || part.isEmpty()) continue;
-                for (String tok : part.split("\\.")) {
-                    if (tok == null || tok.isEmpty()) continue;
-                    String t = tok.trim();
-                    if (t.length() >= 2 && !STOP_WORDS.contains(t.toLowerCase())) {
-                        tokens.add(t);
-                    }
+                String t = part.trim();
+                // individual segments of dotted tokens are handled during
+                // scoring; whole tokens resolve FQNs exactly
+                if (t.length() >= 2 && !STOP_WORDS.contains(t.toLowerCase())) {
+                    tokens.add(t);
                 }
             }
             return tokens;
         }
 
-        /** First candidate that resolves to a class, by simple or qualified name. */
-        private String resolveClass(List<String> candidates) {
+        /**
+         * Resolves a class from question identifiers. Order of preference:
+         * exact fqn match, unique simple-name match, then scored match
+         * (package-segment hints from other tokens, non-nested preferred).
+         * Ambiguous names report their candidates instead of guessing.
+         */
+        public static ClassResolution resolveClass(List<String> candidates, GraphQueryEngine engine) {
+            // fully qualified references win
             for (String c : candidates) {
-                if (c.indexOf('.') >= 0) {
-                    if (queryEngine.findClassByQualifiedName(c).isPresent()) return c;
-                }
-                List<ClassNode> classes = queryEngine.findClassesByName(c);
-                if (!classes.isEmpty()) {
-                    return classes.get(0).getQualifiedName();
+                if (c.indexOf('.') >= 0
+                    && engine.findClassByQualifiedName(c).isPresent()) {
+                    return new ClassResolution(c, null);
                 }
             }
-            return null;
+            // longest simple names first (more specific)
+            List<String> sorted = new ArrayList<>(candidates);
+            sorted.sort((a, b) -> Integer.compare(b.length(), a.length()));
+            for (String c : sorted) {
+                if (c.indexOf('.') >= 0) continue;
+                List<ClassNode> byName = engine.findClassesByName(c);
+                if (byName.isEmpty()) continue;
+                if (byName.size() == 1) {
+                    return new ClassResolution(byName.get(0).getQualifiedName(), null);
+                }
+                // score candidates
+                ClassNode best = null;
+                int bestScore = Integer.MIN_VALUE;
+                boolean tie = false;
+                for (ClassNode cls : byName) {
+                    int score = scoreClass(cls, candidates);
+                    if (score > bestScore) {
+                        best = cls;
+                        bestScore = score;
+                        tie = false;
+                    } else if (score == bestScore) {
+                        tie = true;
+                    }
+                }
+                if (best != null && !tie) {
+                    return new ClassResolution(best.getQualifiedName(), null);
+                }
+                List<String> alternatives = new ArrayList<>();
+                for (ClassNode cls : byName) {
+                    alternatives.add(cls.getQualifiedName());
+                    if (alternatives.size() >= 5) break;
+                }
+                return new ClassResolution(null, alternatives);
+            }
+            return new ClassResolution(null, null);
+        }
+
+        /**
+         * Scores a class candidate against the question's identifier
+         * tokens: package-segment matches are strong hints, non-nested
+         * classes are preferred over nested ones with the same simple name.
+         */
+        private static int scoreClass(ClassNode cls, List<String> candidates) {
+            String fqn = cls.getQualifiedName();
+            int score = 0;
+            if (!fqn.contains("$")) {
+                score += 2;
+            }
+            Set<String> segments = new HashSet<>();
+            for (String seg : fqn.split("[.$]")) {
+                segments.add(seg.toLowerCase());
+            }
+            for (String c : candidates) {
+                String cl = c.toLowerCase();
+                if (segments.contains(cl)) {
+                    score += 3;
+                } else if (c.indexOf('.') >= 0) {
+                    // dotted candidate: its segments count as weak hints
+                    for (String seg : c.split("\\.")) {
+                        if (segments.contains(seg.toLowerCase())) {
+                            score += 1;
+                        }
+                    }
+                } else if (fqn.toLowerCase().contains(cl)) {
+                    score += 1;
+                }
+            }
+            return score;
         }
 
         /** First candidate that resolves to a method name. */
-        private String resolveMethod(List<String> candidates) {
+        public static String resolveMethod(List<String> candidates, GraphQueryEngine engine) {
             for (String c : candidates) {
                 if (c.indexOf('.') >= 0) continue;
-                if (!queryEngine.findMethodsByName(c).isEmpty()) return c;
+                if (!engine.findMethodsByName(c).isEmpty()) return c;
             }
             return null;
         }
 
-        private Map<String, Object> classQuery(String question, String classFqn,
+        private Map<String, Object> classQuery(String question, ClassResolution resolution,
                                                String kind, String missingMsg) {
+            String classFqn = resolution.fqn();
             if (classFqn == null) {
+                if (resolution.ambiguous() != null && !resolution.ambiguous().isEmpty()) {
+                    Map<String, Object> result = unmatched(question, null, null);
+                    result.put("matched", "ambiguous-class");
+                    result.put("candidates", resolution.ambiguous());
+                    result.put("hint", "Multiple classes match. Re-ask with the fully "
+                        + "qualified name, or query one of the candidates directly.");
+                    return result;
+                }
                 return unmatched(question, null, missingMsg);
             }
             Optional<ClassNode> cls = queryEngine.findClassByQualifiedName(classFqn);
@@ -1005,13 +1100,13 @@ public class GausVibeServer {
             List<String> targetClasses = new ArrayList<>();
             Set<String> targetMethods = new HashSet<>();
             
-            String classFqn = resolveClass(candidates);
+            String classFqn = resolveClass(candidates, queryEngine).fqn();
             if (classFqn != null) {
                 targetClasses.add(classFqn);
             } else {
                 // fuzzy method resolution: match a candidate stem against
                 // method names (e.g. "validation" -> validateIndexName)
-                MethodNode best = resolveMethodFuzzy(candidates);
+                MethodNode best = resolveMethodFuzzy(candidates, queryEngine);
                 if (best != null) {
                     if (best.getClassName() != null) {
                         targetClasses.add(best.getClassName());
@@ -1069,9 +1164,16 @@ public class GausVibeServer {
          * contains the stem, scoring higher when the method name contains
          * more of the question's candidate tokens.
          */
-        private MethodNode resolveMethodFuzzy(List<String> candidates) {
-            MethodNode best = null;
-            int bestScore = 0;
+        /**
+         * Fuzzy method resolution. Candidate tokens are stemmed (plural/
+         * gerund/-ion suffixes stripped), and methods are scored by how many
+         * of the question's stems their name contains - a method covering
+         * three tokens (validateIndexName for "index name validation")
+         * must outrank an exact-but-generic single-token match (index()).
+         */
+        public static MethodNode resolveMethodFuzzy(List<String> candidates, GraphQueryEngine engine) {
+            // stem every candidate once
+            List<String> stems = new ArrayList<>();
             for (String candidate : candidates) {
                 String stem = candidate.toLowerCase();
                 for (String suffix : new String[]{"ation", "ion", "ing", "ed", "es", "s"}) {
@@ -1080,28 +1182,46 @@ public class GausVibeServer {
                         break;
                     }
                 }
-                if (stem.length() < 3) continue;
-                
-                for (MethodNode m : queryEngine.findMethodsByName(candidate)) {
-                    if (bestScore < 100) {
-                        best = m;
-                        bestScore = 100;
+                if (stem.length() >= 3 && !stems.contains(stem)) {
+                    stems.add(stem);
+                }
+            }
+            if (stems.isEmpty()) {
+                return null;
+            }
+            
+            MethodNode best = null;
+            int bestScore = 0;
+            for (MethodNode m : engine.getAllMethods()) {
+                String name = m.getName().toLowerCase();
+                int matched = 0;
+                int length = 0;
+                for (String stem : stems) {
+                    if (name.contains(stem)) {
+                        matched++;
+                        length += stem.length();
                     }
                 }
-                for (MethodNode m : queryEngine.getAllMethods()) {
-                    String name = m.getName().toLowerCase();
-                    if (!name.contains(stem)) continue;
-                    int score = stem.length();
-                    for (String other : candidates) {
-                        if (other.equals(candidate)) continue;
-                        if (name.contains(other.toLowerCase())) {
-                            score += 20;
-                        }
+                if (matched == 0) {
+                    continue;
+                }
+                int score = matched * 40 + length;
+                // exact name match adds a bonus only when the name is rare:
+                // common names like get/index/build are not a signal
+                boolean exactRare = false;
+                for (String c : candidates) {
+                    if (c.indexOf('.') < 0 && name.equals(c.toLowerCase())
+                        && engine.findMethodsByName(m.getName()).size() <= 2) {
+                        exactRare = true;
+                        break;
                     }
-                    if (score > bestScore) {
-                        best = m;
-                        bestScore = score;
-                    }
+                }
+                if (exactRare) {
+                    score += 20;
+                }
+                if (score > bestScore) {
+                    best = m;
+                    bestScore = score;
                 }
             }
             return best;
@@ -1175,14 +1295,46 @@ public class GausVibeServer {
             return matched(question, "callers", sb.toString(), total);
         }
 
-        private Map<String, Object> locationQuery(String question, String classFqn, String methodName) {
-            if (classFqn != null) {
-                return classQuery(question, classFqn, "class-location", null);
+        private Map<String, Object> locationQuery(String question, ClassResolution resolution,
+                                                  String methodName, MethodNode fuzzyMethod) {
+            if (resolution.fqn() != null) {
+                return classQuery(question, resolution, "class-location", null);
             }
             if (methodName != null) {
                 return methodQuery(question, methodName);
             }
+            if (fuzzyMethod != null) {
+                // "where is index name validation performed" -> validateIndexName
+                return methodDetailQuery(question, fuzzyMethod);
+            }
+            if (resolution.ambiguous() != null && !resolution.ambiguous().isEmpty()) {
+                Map<String, Object> result = unmatched(question, null, null);
+                result.put("matched", "ambiguous-class");
+                result.put("candidates", resolution.ambiguous());
+                result.put("hint", "Multiple classes match. Re-ask with the fully "
+                    + "qualified name, or query one of the candidates directly.");
+                return result;
+            }
             return unmatched(question, null, "No class or method name found in the question");
+        }
+
+        /**
+         * Answers with the location of one specific method node.
+         */
+        private Map<String, Object> methodDetailQuery(String question, MethodNode m) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("Method ").append(m.getQualifiedName()).append("\n");
+            sb.append("  Signature: ").append(m.getSignature()).append("\n");
+            if (m.getFile() != null) {
+                sb.append("  File: ").append(m.getFile()).append("\n");
+            }
+            if (m.isStatic()) {
+                sb.append("  Modifier: static\n");
+            }
+            if (m.isPublic()) {
+                sb.append("  Modifier: public\n");
+            }
+            return matched(question, "method-location", sb.toString(), 1);
         }
 
         private Map<String, Object> methodQuery(String question, String methodName) {
