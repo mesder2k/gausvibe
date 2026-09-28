@@ -140,6 +140,7 @@ public class GausVibeServer {
         server.createContext("/feedback", new FeedbackHandler());
         server.createContext("/edited", new EditedHandler());
         server.createContext("/changes", new ChangesHandler());
+        server.createContext("/tests", new TestsHandler());
         server.createContext("/classes/", new ClassDetailHandler());
     }
     
@@ -262,6 +263,7 @@ public class GausVibeServer {
             endpoints.put("POST /feedback", "Rate an /ask answer (helpful, wrong, incomplete, too-big, other)");
             endpoints.put("POST /edited", "Report a file edit; GausVibe reparses just that file and updates the graph");
             endpoints.put("GET /changes", "Recent file updates reported via POST /edited");
+            endpoints.put("GET /tests/{fqn}", "Tests covering a class (by name convention and call graph)");
             info.put("endpoints", endpoints);
             
             return toJson(info);
@@ -781,6 +783,9 @@ public class GausVibeServer {
 
         private static final int MAX_LINES = 50;
 
+        private static final java.util.regex.Pattern TEST_QUESTION = java.util.regex.Pattern.compile(
+            "\\btest(s|ed|ing)?\\b|\\bverif(y|ies|ied)\\b|\\bassert", java.util.regex.Pattern.CASE_INSENSITIVE);
+
         private static final Set<String> STOP_WORDS = Set.of(
             "who", "what", "where", "which", "when", "how", "why",
             "the", "a", "an", "of", "in", "on", "at", "to", "for", "with", "by",
@@ -849,6 +854,9 @@ public class GausVibeServer {
             }
             if (lower.contains("call")) {
                 return callersQuery(question, methodName);
+            }
+            if (TEST_QUESTION.matcher(lower).find()) {
+                return testsQuery(question, candidates);
             }
             if (lower.contains("method")) {
                 return classQuery(question, classFqn, "methods",
@@ -967,6 +975,118 @@ public class GausVibeServer {
                 }
             }
             return matched(question, kind, sb.toString(), count);
+        }
+
+        /**
+         * Routes test/harness questions to the test-coverage endpoint
+         * logic. Falls back to fuzzy method resolution: "index name
+         * validation" can resolve to validateIndexName, and the question
+         * is then answered with the tests covering that method's class.
+         */
+        private Map<String, Object> testsQuery(String question, List<String> candidates) {
+            List<String> targetClasses = new ArrayList<>();
+            Set<String> targetMethods = new HashSet<>();
+            
+            String classFqn = resolveClass(candidates);
+            if (classFqn != null) {
+                targetClasses.add(classFqn);
+            } else {
+                // fuzzy method resolution: match a candidate stem against
+                // method names (e.g. "validation" -> validateIndexName)
+                MethodNode best = resolveMethodFuzzy(candidates);
+                if (best != null) {
+                    if (best.getClassName() != null) {
+                        targetClasses.add(best.getClassName());
+                    }
+                    targetMethods.add(best.getSignature());
+                }
+            }
+            
+            if (targetClasses.isEmpty()) {
+                return unmatched(question, candidates, null);
+            }
+            
+            StringBuilder sb = new StringBuilder();
+            int total = 0;
+            for (String fqn : targetClasses) {
+                Optional<ClassNode> cls = queryEngine.findClassByQualifiedName(fqn);
+                if (cls.isEmpty()) continue;
+                Map<String, Object> coverage = TestsHandler.coverageFor(cls.get(), queryEngine);
+                List<?> tests = (List<?>) coverage.get("tests");
+                sb.append("Tests covering ").append(fqn).append(" (")
+                  .append(tests.size()).append("):\n");
+                if (!targetMethods.isEmpty()) {
+                    sb.append("  (matched via method: ").append(String.join(", ", targetMethods)).append(")\n");
+                }
+                for (Object t : tests) {
+                    if (t instanceof Map) {
+                        Map<?, ?> tm = (Map<?, ?>) t;
+                        sb.append("  - ").append(tm.get("test_class"));
+                        Object file = tm.get("file");
+                        if (file != null) {
+                            sb.append("  [").append(file).append("]");
+                        }
+                        Object cov = tm.get("coverage");
+                        if (cov != null) {
+                            sb.append("  (").append(cov).append(")");
+                        }
+                        sb.append("\n");
+                        Object methods = tm.get("test_methods");
+                        if (methods instanceof Map && !((Map<?, ?>) methods).isEmpty()) {
+                            for (var e : ((Map<?, ?>) methods).entrySet()) {
+                                sb.append("      ").append(e.getKey()).append("\n");
+                            }
+                        }
+                        total++;
+                    }
+                }
+            }
+            
+            return matched(question, "tests", sb.toString(), total);
+        }
+        
+        /**
+         * Fuzzy method resolution: normalizes a candidate (strips common
+         * suffixes like plural/gerund/-ion), then finds methods whose name
+         * contains the stem, scoring higher when the method name contains
+         * more of the question's candidate tokens.
+         */
+        private MethodNode resolveMethodFuzzy(List<String> candidates) {
+            MethodNode best = null;
+            int bestScore = 0;
+            for (String candidate : candidates) {
+                String stem = candidate.toLowerCase();
+                for (String suffix : new String[]{"ation", "ion", "ing", "ed", "es", "s"}) {
+                    if (stem.endsWith(suffix) && stem.length() > suffix.length()) {
+                        stem = stem.substring(0, stem.length() - suffix.length());
+                        break;
+                    }
+                }
+                if (stem.length() < 3) continue;
+                
+                for (MethodNode m : queryEngine.findMethodsByName(candidate)) {
+                    if (bestScore < 100) {
+                        best = m;
+                        bestScore = 100;
+                    }
+                }
+                for (MethodNode m : queryEngine.getAllMethods()) {
+                    String name = m.getName().toLowerCase();
+                    if (!name.contains(stem)) continue;
+                    int score = stem.length();
+                    for (String other : candidates) {
+                        if (other.equals(candidate)) continue;
+                        if (name.contains(other.toLowerCase())) {
+                            score += 20;
+                        }
+                    }
+                    if (score > bestScore) {
+                        best = m;
+                        bestScore = score;
+                    }
+                }
+            }
+            return best;
         }
 
         private Map<String, Object> callersQuery(String question, String methodName) {
@@ -1258,6 +1378,116 @@ public class GausVibeServer {
             result.put("count", changes.size());
             result.put("changes", changes);
             return toJson(result);
+        }
+    }
+
+    /**
+     * Test-coverage endpoint: which tests cover a production class.
+     *
+     * Coverage is derived two ways:
+     * - name convention: test classes whose simple name contains the
+     *   production class's simple name (FooTest, FooIT, FooTestCase)
+     * - call graph: test classes with CALLS edges from their methods into
+     *   the production class's methods (method-level coverage)
+     */
+    public static class TestsHandler extends BaseHandler {
+        @Override
+        protected String handleRequest(HttpExchange exchange) {
+            String path = exchange.getRequestURI().getPath();
+            String fqn = path.substring("/tests/".length());
+            if (fqn.isEmpty()) {
+                return responseJson(400, Map.of("error", "Missing class fqn in path"));
+            }
+            
+            Optional<ClassNode> cls = queryEngine.findClassByQualifiedName(fqn);
+            if (cls.isEmpty()) {
+                // tolerate simple names
+                List<ClassNode> byName = queryEngine.findClassesByName(fqn);
+                if (byName.size() == 1) {
+                    cls = Optional.of(byName.get(0));
+                }
+            }
+            if (cls.isEmpty()) {
+                return responseJson(404, Map.of("error", "Class not found: " + fqn));
+            }
+            
+            Map<String, Object> coverage = coverageFor(cls.get(), queryEngine);
+            return toJson(coverage);
+        }
+        
+        /**
+         * Computes test coverage for a production class.
+         */
+        public static Map<String, Object> coverageFor(ClassNode prodClass, GraphQueryEngine engine) {
+            String prodName = prodClass.getName();
+            String prodFqn = prodClass.getQualifiedName();
+            Set<String> prodMethodIds = new HashSet<>();
+            for (MethodNode m : engine.getMethods(prodClass)) {
+                prodMethodIds.add(m.getId());
+            }
+            
+            // Map test-class fqn -> test method -> called prod methods
+            Map<String, Map<String, Object>> coveringTests = new LinkedHashMap<>();
+            
+            for (ClassNode candidate : engine.getAllClasses()) {
+                if (!isTestClass(candidate) || candidate.getQualifiedName().equals(prodFqn)) {
+                    continue;
+                }
+                Map<String, List<String>> coveringMethods = new LinkedHashMap<>();
+                
+                for (MethodNode testMethod : engine.getMethods(candidate)) {
+                    List<String> calledProd = new ArrayList<>();
+                    for (MethodNode callee : engine.getCallees(testMethod)) {
+                        if (prodMethodIds.contains(callee.getId())) {
+                            calledProd.add(callee.getSignature());
+                        }
+                    }
+                    if (!calledProd.isEmpty()) {
+                        coveringMethods.put(testMethod.getSignature(), calledProd);
+                    }
+                }
+                
+                boolean nameMatch = candidate.getName().toLowerCase()
+                    .contains(prodName.toLowerCase());
+                if (!coveringMethods.isEmpty() || nameMatch) {
+                    Map<String, Object> testEntry = new LinkedHashMap<>();
+                    testEntry.put("test_class", candidate.getQualifiedName());
+                    testEntry.put("file", candidate.getFile());
+                    testEntry.put("coverage", nameMatch && coveringMethods.isEmpty()
+                        ? "name-convention" : "call-graph");
+                    if (!coveringMethods.isEmpty()) {
+                        testEntry.put("test_methods", coveringMethods);
+                    }
+                    coveringTests.put(candidate.getQualifiedName(), testEntry);
+                }
+            }
+            
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("class", prodFqn);
+            result.put("test_count", coveringTests.size());
+            result.put("tests", new ArrayList<>(coveringTests.values()));
+            return result;
+        }
+        
+        /**
+         * Heuristic: is this class a test? Either its file lives in a test
+         * source directory, or its name follows test conventions.
+         */
+        public static boolean isTestClass(ClassNode cls) {
+            String name = cls.getName();
+            if (name.endsWith("Test") || name.endsWith("Tests")
+                || name.endsWith("IT") || name.endsWith("TestCase")
+                || name.startsWith("Test")) {
+                return true;
+            }
+            Path file = cls.getFile();
+            if (file != null) {
+                String p = file.toString().replace('\\', '/');
+                if (p.contains("/test/") || p.contains("/internalClusterTest/")) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
