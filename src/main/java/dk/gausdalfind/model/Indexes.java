@@ -118,6 +118,11 @@ public class Indexes {
         return Collections.unmodifiableList(matches);
     }
 
+    /** Returns all indexed literal values (for cache serialization). */
+    public List<ValueOccurrence> getAllValues() {
+        return Collections.unmodifiableList(new ArrayList<>(literalValues));
+    }
+
     /**
      * Indexes a node for fast lookup.
      */

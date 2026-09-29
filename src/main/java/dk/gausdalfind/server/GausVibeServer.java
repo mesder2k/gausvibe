@@ -85,12 +85,23 @@ public class GausVibeServer {
             System.exit(1);
         }
         
-        // Build graph
+        // Build graph (or load it from cache when the sources are unchanged)
         System.out.println("Building graph for: " + projectPath);
-        builder = new GausVibeBuilder(Path.of(projectPath));
-        builder.setParallel(true);
-        builder.setIncludeTestSources(true);
-        graph = builder.build();
+        java.nio.file.Path projectRoot = java.nio.file.Path.of(projectPath);
+        Graph cached = GraphCache.load(projectRoot);
+        if (cached != null) {
+            graph = cached;
+            // builder without build() so POST /edited can still reparse files
+            builder = new GausVibeBuilder(projectRoot);
+            builder.setParallel(true);
+            builder.setIncludeTestSources(true);
+        } else {
+            builder = new GausVibeBuilder(projectRoot);
+            builder.setParallel(true);
+            builder.setIncludeTestSources(true);
+            graph = builder.build();
+            GraphCache.write(projectRoot, graph);
+        }
         queryEngine = new GraphQueryEngine(graph);
         
         // Enable the call graph index and backfill existing CALLS edges
@@ -1696,6 +1707,8 @@ public class GausVibeServer {
             GausVibeBuilder.UpdateResult result;
             try {
                 result = builder.updateFile(file);
+                // the reparsed graph diverges from the cached one
+                GraphCache.invalidate(Path.of(projectPath));
             } catch (Exception e) {
                 String cause = e.getCause() != null ? " (cause: " + e.getCause() + ")" : "";
                 return responseJson(500, Map.of(
@@ -2033,6 +2046,7 @@ public class GausVibeServer {
                         graph = newGraph;
                         queryEngine = new GraphQueryEngine(newGraph);
                     }
+                    GraphCache.write(Path.of(projectPath), newGraph);
                     if (staleness != null) {
                         try {
                             staleness.captureBaseline();
