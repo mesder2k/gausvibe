@@ -391,15 +391,23 @@ public class GausVibeServer {
             }
             
             List<String> methods = new ArrayList<>();
+            List<Map<String, Object>> methodDetails = new ArrayList<>();
             for (MethodNode method : queryEngine.getMethods(cls.get())) {
                 methods.add(method.getSignature());
+                Map<String, Object> detail = new LinkedHashMap<>();
+                detail.put("signature", method.getSignature());
+                if (method.getStartPosition() != null) {
+                    detail.put("line", method.getStartPosition().line());
+                }
+                methodDetails.add(detail);
             }
             Collections.sort(methods);
-            
+
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("class", fqn);
             result.put("count", methods.size());
             result.put("methods", methods);
+            result.put("method_details", methodDetails);
             return toJson(result);
         }
         
@@ -446,6 +454,9 @@ public class GausVibeServer {
             map.put("fqn", cls.getQualifiedName());
             map.put("name", cls.getName());
             map.put("file", cls.getFile());
+            if (cls.getStartPosition() != null) {
+                map.put("line", cls.getStartPosition().line());
+            }
             if (cls.hasSuperclass()) {
                 map.put("superclass", cls.getSuperclass());
             }
@@ -1132,7 +1143,11 @@ public class GausVibeServer {
                 default -> {
                     count = 1;
                     sb.append("Class ").append(classFqn).append(":\n");
-                    sb.append("  File: ").append(c.getFile()).append("\n");
+                    sb.append("  File: ").append(c.getFile());
+                    if (c.getStartPosition() != null) {
+                        sb.append(":").append(c.getStartPosition().line());
+                    }
+                    sb.append("\n");
                     if (c.hasSuperclass()) {
                         sb.append("  Superclass: ").append(c.getSuperclass()).append("\n");
                     }
@@ -1345,7 +1360,11 @@ public class GausVibeServer {
                     MethodNode caller = callers.get(i);
                     sb.append("    - ").append(caller.getQualifiedName());
                     if (caller.getFile() != null) {
-                        sb.append("  [").append(caller.getFile()).append("]");
+                        sb.append("  [").append(caller.getFile());
+                        if (caller.getStartPosition() != null) {
+                            sb.append(":").append(caller.getStartPosition().line());
+                        }
+                        sb.append("]");
                     }
                     sb.append("\n");
                 }
@@ -1396,7 +1415,11 @@ public class GausVibeServer {
             sb.append("Method ").append(m.getQualifiedName()).append("\n");
             sb.append("  Signature: ").append(m.getSignature()).append("\n");
             if (m.getFile() != null) {
-                sb.append("  File: ").append(m.getFile()).append("\n");
+                sb.append("  File: ").append(m.getFile());
+                if (m.getStartPosition() != null) {
+                    sb.append(":").append(m.getStartPosition().line());
+                }
+                sb.append("\n");
             }
             if (m.isStatic()) {
                 sb.append("  Modifier: static\n");
@@ -1425,7 +1448,11 @@ public class GausVibeServer {
                 ClassNode c = classes.get(i);
                 sb.append("  - ").append(c.getQualifiedName());
                 if (c.getFile() != null) {
-                    sb.append("  [").append(c.getFile()).append("]");
+                    sb.append("  [").append(c.getFile());
+                    if (c.getStartPosition() != null) {
+                        sb.append(":").append(c.getStartPosition().line());
+                    }
+                    sb.append("]");
                 }
                 sb.append("\n");
             }
@@ -1440,7 +1467,11 @@ public class GausVibeServer {
                 MethodNode m = methods.get(i);
                 sb.append("  - ").append(m.getSignature());
                 if (m.getFile() != null) {
-                    sb.append("  [").append(m.getFile()).append("]");
+                    sb.append("  [").append(m.getFile());
+                    if (m.getStartPosition() != null) {
+                        sb.append(":").append(m.getStartPosition().line());
+                    }
+                    sb.append("]");
                 }
                 sb.append("\n");
             }
@@ -1455,7 +1486,11 @@ public class GausVibeServer {
                 FieldNode f = fields.get(i);
                 sb.append("  - ").append(f.getQualifiedName()).append(": ").append(f.getDataType());
                 if (f.getFile() != null) {
-                    sb.append("  [").append(f.getFile()).append("]");
+                    sb.append("  [").append(f.getFile());
+                    if (f.getStartPosition() != null) {
+                        sb.append(":").append(f.getStartPosition().line());
+                    }
+                    sb.append("]");
                 }
                 sb.append("\n");
             }
