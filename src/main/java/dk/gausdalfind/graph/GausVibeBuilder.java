@@ -137,6 +137,10 @@ public class GausVibeBuilder {
             
             // Phase 4.5: Resolve recorded call sites into CALLS edges
             resolveCallSites();
+
+            // Phase 4.6: Expand CALLS edges through interface/abstract
+            // dispatch so callpath and callers cross dynamic dispatch
+            expandDispatchEdges();
             
             // Phase 5: Add derived edges
             addDerivedEdges();
@@ -258,6 +262,7 @@ public class GausVibeBuilder {
         
         parseFile(file);
         resolveCallSites();
+        expandDispatchEdges();
         
         int nodesAfter = graph.getNodeCount();
         int edgesAfter = graph.getEdgeCount();
@@ -562,7 +567,7 @@ public class GausVibeBuilder {
         }
         
         Set<String> modifiers = new HashSet<>();
-        recordDecl.getModifiers().forEach(m -> modifiers.add(m.toString()));
+        recordDecl.getModifiers().forEach(m -> modifiers.add(m.toString().trim()));
         
         ClassNode recordNode = new ClassNode(
             NodeIdGenerator.forDeclaration(NodeIdGenerator.NodeType.CLASS, qualifiedName),
@@ -602,7 +607,7 @@ public class GausVibeBuilder {
             context.getCurrentPackage() + "." + name : name;
         
         Set<String> modifiers = new HashSet<>();
-        enumDecl.getModifiers().forEach(m -> modifiers.add(m.toString()));
+        enumDecl.getModifiers().forEach(m -> modifiers.add(m.toString().trim()));
         
         ClassNode enumNode = new ClassNode(
             NodeIdGenerator.forDeclaration(NodeIdGenerator.NodeType.CLASS, qualifiedName),
@@ -713,6 +718,118 @@ public class GausVibeBuilder {
         }
     }
     
+    /**
+     * Expands CALLS edges through dynamic dispatch: a call site resolved
+     * to an interface or abstract method also produces CALLS edges to the
+     * concrete overriding methods in descendant classes, so callpath and
+     * callers queries can cross e.g. RestHandler.handleRequest ->
+     * an implementation. Only abstract callees are expanded (concrete
+     * calls keep their single edge), and expansion per call site is
+     * capped to keep huge hierarchies from exploding the graph.
+     */
+    private void expandDispatchEdges() {
+        Indexes indexes = graph.getIndexes();
+        final int cap = 50;
+
+        Map<String, Map<String, List<MethodNode>>> methodsByClass = new HashMap<>();
+        for (MethodNode m : indexes.getAllMethods()) {
+            String cls = m.getClassName();
+            if (cls != null && !cls.isBlank()) {
+                methodsByClass.computeIfAbsent(cls, k -> new HashMap<>())
+                    .computeIfAbsent(m.getName(), k -> new ArrayList<>()).add(m);
+            }
+        }
+
+        // direct descendants: superclass -> subclasses, interface -> implementors
+        Map<String, List<ClassNode>> childrenByType = new HashMap<>();
+        for (ClassNode c : indexes.getAllClasses()) {
+            if (c.hasSuperclass() && c.getSuperclass() != null) {
+                childrenByType.computeIfAbsent(c.getSuperclass(), k -> new ArrayList<>()).add(c);
+            }
+            for (String iface : c.getInterfaces()) {
+                childrenByType.computeIfAbsent(iface, k -> new ArrayList<>()).add(c);
+            }
+        }
+
+        // dedup against existing CALLS edges so updateFile re-runs stay idempotent
+        Set<String> existing = new HashSet<>();
+        for (Edge e : indexes.getEdgesByType(EdgeTypes.CALLS)) {
+            existing.add(e.getFromId() + "|" + e.getToId());
+        }
+
+        // methods of interfaces and abstract classes are dispatch targets even
+        // when not flagged abstract (interface methods are implicitly abstract)
+        Set<String> dispatchOwnerTypes = new HashSet<>();
+        for (ClassNode c : indexes.getAllClasses()) {
+            if (c.isInterface() || c.isAbstract()) {
+                dispatchOwnerTypes.add(c.getQualifiedName());
+            }
+        }
+
+        int expanded = 0;
+        for (Edge edge : new ArrayList<>(indexes.getEdgesByType(EdgeTypes.CALLS))) {
+            Node to = graph.getNode(edge.getToId()).orElse(null);
+            if (!(to instanceof MethodNode)) {
+                continue;
+            }
+            MethodNode callee = (MethodNode) to;
+            if (callee.getClassName() == null) {
+                continue;
+            }
+            boolean dispatchTarget = callee.isAbstract()
+                || dispatchOwnerTypes.contains(callee.getClassName());
+            if (!dispatchTarget) {
+                continue;
+            }
+
+            // transitive descendants of the callee's owner type
+            Deque<String> frontier = new ArrayDeque<>();
+            Set<String> visited = new HashSet<>();
+            frontier.add(callee.getClassName());
+            int perSite = 0;
+            while (!frontier.isEmpty() && perSite < cap) {
+                String typeFqn = frontier.poll();
+                if (!visited.add(typeFqn)) {
+                    continue;
+                }
+                for (ClassNode child : childrenByType.getOrDefault(typeFqn, List.of())) {
+                    frontier.add(child.getQualifiedName());
+                    if (child.getQualifiedName().equals(callee.getClassName())) {
+                        continue;
+                    }
+                    List<MethodNode> overrides = methodsByClass
+                        .getOrDefault(child.getQualifiedName(), Map.of())
+                        .get(callee.getName());
+                    if (overrides == null) {
+                        continue;
+                    }
+                    for (MethodNode impl : overrides) {
+                        if (impl.isAbstract() || !impl.getSignature().equals(callee.getSignature())) {
+                            continue;
+                        }
+                        String key = edge.getFromId() + "|" + impl.getId();
+                        if (existing.contains(key)) {
+                            continue;
+                        }
+                        existing.add(key);
+                        graph.addEdge(new Edge(
+                            edge.getFromId(), impl.getId(), EdgeTypes.CALLS, Map.of()));
+                        expanded++;
+                        perSite++;
+                        if (perSite >= cap) {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (expanded > 0) {
+            System.out.println("Expanded " + expanded
+                + " dispatch CALLS edges (interface/abstract -> concrete)");
+        }
+    }
+
     /**
      * Resolves one recorded call site to callee method nodes.
      */

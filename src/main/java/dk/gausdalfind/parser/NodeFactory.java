@@ -129,7 +129,7 @@ public class NodeFactory {
         
         // Get modifiers
         Set<String> modifiers = new HashSet<>();
-        classDecl.getModifiers().forEach(m -> modifiers.add(m.toString()));
+        classDecl.getModifiers().forEach(m -> modifiers.add(m.toString().trim()));
         
         // Get superclass
         String superclass = null;
@@ -207,7 +207,7 @@ public class NodeFactory {
         
         // Get modifiers
         Set<String> modifiers = new HashSet<>();
-        methodDecl.getModifiers().forEach(m -> modifiers.add(m.toString()));
+        methodDecl.getModifiers().forEach(m -> modifiers.add(m.toString().trim()));
         
         // Get thrown exceptions
         List<String> thrownExceptions = new ArrayList<>();
@@ -288,7 +288,7 @@ public class NodeFactory {
         
         // Get modifiers
         Set<String> modifiers = new HashSet<>();
-        ctorDecl.getModifiers().forEach(m -> modifiers.add(m.toString()));
+        ctorDecl.getModifiers().forEach(m -> modifiers.add(m.toString().trim()));
         
         // Get thrown exceptions
         List<String> thrownExceptions = new ArrayList<>();
@@ -346,7 +346,7 @@ public class NodeFactory {
             
             // Get modifiers
             Set<String> modifiers = new HashSet<>();
-            fieldDecl.getModifiers().forEach(m -> modifiers.add(m.toString()));
+            fieldDecl.getModifiers().forEach(m -> modifiers.add(m.toString().trim()));
             
             boolean isStatic = modifiers.contains("static");
             boolean isFinal = modifiers.contains("final");
