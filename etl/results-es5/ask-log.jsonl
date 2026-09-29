@@ -1,0 +1,42 @@
+{"ts":"2026-09-29T19:35:23.597144Z","project":"server","question":"where is 9200 defined","matched":"value-location","answer_bytes":4859,"ok":true}
+{"ts":"2026-09-29T19:35:29.157102Z","project":"server","question":"who calls findMatchingDescriptor","matched":"callers","answer_bytes":6244,"ok":true}
+{"ts":"2026-09-29T19:35:34.222986Z","project":"server","question":"who calls createIndex","matched":"callers","answer_bytes":11918,"ok":true}
+{"ts":"2026-09-29T19:35:52.681824Z","project":"server","question":"who calls createIndex","matched":"callers","answer_bytes":11918,"ok":true}
+{"ts":"2026-09-29T19:58:53.569160Z","project":"server","question":"where is 9200 defined","matched":"value-location","answer_bytes":4859,"ok":true}
+{"ts":"2026-09-29T19:59:49.383841Z","project":"server","question":"where is HttpTransportSettings defined","matched":"class-location","answer_bytes":324,"ok":true}
+{"ts":"2026-09-29T19:59:49.467169Z","project":"server","question":"what fields does HttpTransportSettings have","matched":"fields","answer_bytes":10205,"ok":true}
+{"ts":"2026-09-29T19:59:49.508843Z","project":"server","question":"what methods does HttpTransportSettings have","matched":"methods","answer_bytes":330,"ok":true}
+{"ts":"2026-09-29T19:59:49.552125Z","project":"server","question":"where is TransportSettings defined","matched":"class-location","answer_bytes":322,"ok":true}
+{"ts":"2026-09-29T19:59:49.613541Z","project":"server","question":"what fields does TransportSettings have","matched":"fields","answer_bytes":10648,"ok":true}
+{"ts":"2026-09-29T19:59:49.678367Z","project":"server","question":"where is HttpServerTransport defined","matched":"class-location","answer_bytes":386,"ok":true}
+{"ts":"2026-09-29T19:59:50.261525Z","project":"server","question":"who calls SETTING_HTTP_PORT","matched":null,"answer_bytes":375,"ok":true}
+{"ts":"2026-09-29T19:59:50.331452Z","project":"server","question":"what implements HttpServerTransport","matched":"implementations","answer_bytes":1245,"ok":true}
+{"ts":"2026-09-29T19:59:53.192447Z","project":"server","question":"where is 9200 defined","matched":"value-location","answer_bytes":4859,"ok":true}
+{"ts":"2026-09-29T19:59:53.255100Z","project":"server","question":"where is DEFAULT_HTTP_PORT defined","matched":null,"answer_bytes":391,"ok":true}
+{"ts":"2026-09-29T19:59:53.293268Z","project":"server","question":"who calls SETTING_HTTP_PORT","matched":null,"answer_bytes":375,"ok":true}
+{"ts":"2026-09-29T19:59:57.455464Z","project":"server","question":"where is 9200 used","matched":"value-location","answer_bytes":4856,"ok":true}
+{"ts":"2026-09-29T19:59:57.495844Z","project":"server","question":"where is 9200-9300 defined","matched":"value-location","answer_bytes":359,"ok":true}
+{"ts":"2026-09-29T19:59:57.562705Z","project":"server","question":"where is 9200 referenced","matched":"value-location","answer_bytes":4862,"ok":true}
+{"ts":"2026-09-29T19:59:57.602761Z","project":"server","question":"where is SETTING_HTTP_PORT used","matched":null,"answer_bytes":388,"ok":true}
+{"ts":"2026-09-29T19:59:57.655038Z","project":"server","question":"what fields does HttpServerTransport have","matched":"fields","answer_bytes":594,"ok":true}
+{"ts":"2026-09-29T19:59:58.151118Z","project":"server","question":"where is PortsRange defined","matched":"class-location","answer_bytes":314,"ok":true}
+{"ts":"2026-09-29T19:59:58.248814Z","project":"server","question":"who calls port","matched":null,"answer_bytes":362,"ok":true}
+{"ts":"2026-09-29T20:02:43.292197Z","project":"server","question":"who calls dispatchRequest","matched":"callers","answer_bytes":22681,"ok":true}
+{"ts":"2026-09-29T20:02:46.805942Z","project":"server","question":"who calls createIndex","matched":"callers","answer_bytes":12057,"ok":true}
+{"ts":"2026-09-29T20:02:46.831658Z","project":"server","question":"who calls handleIncomingRequest","matched":"callers","answer_bytes":432,"ok":true}
+{"ts":"2026-09-29T20:02:49.360188Z","project":"server","question":"who calls incomingRequest","matched":"callers","answer_bytes":1166,"ok":true}
+{"ts":"2026-09-29T20:02:57.107127Z","project":"server","question":"who calls masterOperation","matched":"callers","answer_bytes":16079,"ok":true}
+{"ts":"2026-09-29T20:02:57.134735Z","project":"server","question":"who calls prepareRequest","matched":"callers","answer_bytes":49757,"ok":true}
+{"ts":"2026-09-29T20:02:57.165796Z","project":"server","question":"who calls applyCreateIndexRequest","matched":"callers","answer_bytes":7477,"ok":true}
+{"ts":"2026-09-29T20:02:57.191490Z","project":"server","question":"who calls clusterStateCreateIndex","matched":"callers","answer_bytes":1722,"ok":true}
+{"ts":"2026-09-29T20:03:06.977363Z","project":"server","question":"where is createIndex defined","matched":"method-location","answer_bytes":414,"ok":true}
+{"ts":"2026-09-29T20:03:07.003711Z","project":"server","question":"what methods does IndicesClusterStateService have","matched":"methods","answer_bytes":6532,"ok":true}
+{"ts":"2026-09-29T20:03:20.799168Z","project":"server","question":"where is IndicesService.createIndex defined","matched":null,"answer_bytes":400,"ok":true}
+{"ts":"2026-09-29T20:03:20.982498Z","project":"server","question":"who calls applyClusterState","matched":"callers","answer_bytes":16157,"ok":true}
+{"ts":"2026-09-29T20:04:29.970054Z","project":"server","question":"where is validateIndexName defined","matched":"method-location","answer_bytes":552,"ok":true}
+{"ts":"2026-09-29T20:04:30.006410Z","project":"server","question":"where is IndexNameValidator defined","matched":null,"answer_bytes":392,"ok":true}
+{"ts":"2026-09-29T20:04:30.190027Z","project":"server","question":"which tests verify MetadataCreateIndexService","matched":"tests","answer_bytes":4133,"ok":true}
+{"ts":"2026-09-29T20:04:33.130185Z","project":"server","question":"which tests verify IndexNameExpressionResolver","matched":"tests","answer_bytes":7844,"ok":true}
+{"ts":"2026-09-29T20:04:36.681545Z","project":"server","question":"who calls validateIndexName","matched":"callers","answer_bytes":2264,"ok":true}
+{"ts":"2026-09-29T20:04:48.716457Z","project":"server","question":"who calls ensureValidIndexName","matched":"callers","answer_bytes":447,"ok":true}
+{"ts":"2026-09-29T20:05:10.045242Z","project":"server","question":"where is hasText defined","matched":"method-location","answer_bytes":419,"ok":true}
