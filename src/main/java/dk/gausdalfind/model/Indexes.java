@@ -78,7 +78,46 @@ public class Indexes {
     private CallGraphIndex callGraphIndex = null;
     
     // ==================== Index Management ====================
-    
+
+    /**
+     * A literal value occurring in a field initializer, indexed for
+     * value-based lookups ("where is 9200 defined").
+     */
+    public record ValueOccurrence(String value, String classFqn, String fieldName,
+                                  Path file, int line) {}
+
+    // ==================== Value Index ====================
+
+    /** Literal values captured from field initializers. */
+    private final List<ValueOccurrence> literalValues = new ArrayList<>();
+
+    /** Indexes a literal value captured from a field initializer. */
+    public void indexValue(ValueOccurrence occurrence) {
+        if (occurrence != null && occurrence.value() != null && !occurrence.value().isBlank()) {
+            literalValues.add(occurrence);
+        }
+    }
+
+    /**
+     * Returns field-initializer literals containing the given text
+     * (substring match), at most limit results.
+     */
+    public List<ValueOccurrence> findValuesContaining(String text, int limit) {
+        if (text == null || text.isBlank()) {
+            return Collections.emptyList();
+        }
+        List<ValueOccurrence> matches = new ArrayList<>();
+        for (ValueOccurrence v : literalValues) {
+            if (v.value().contains(text)) {
+                matches.add(v);
+                if (matches.size() >= limit) {
+                    break;
+                }
+            }
+        }
+        return Collections.unmodifiableList(matches);
+    }
+
     /**
      * Indexes a node for fast lookup.
      */
@@ -585,6 +624,7 @@ public class Indexes {
         edgesByType.clear();
         edgesFrom.clear();
         edgesTo.clear();
+        literalValues.clear();
         
         if (callGraphIndex != null) {
             callGraphIndex.clear();

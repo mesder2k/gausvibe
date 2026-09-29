@@ -7,6 +7,7 @@ import dk.gausdalfind.graph.GausVibeBuilder;
 import dk.gausdalfind.model.CallGraphIndex;
 import dk.gausdalfind.model.EdgeTypes;
 import dk.gausdalfind.model.Graph;
+import dk.gausdalfind.model.Indexes;
 import dk.gausdalfind.model.Node;
 import dk.gausdalfind.model.declaration.ClassNode;
 import dk.gausdalfind.model.declaration.FieldNode;
@@ -945,6 +946,17 @@ public class GausVibeServer {
             if (TEST_QUESTION.matcher(lower).find()) {
                 return testsQuery(question, candidates);
             }
+            // value questions: "where is 9200 defined", 'where is "http.port" the default'
+            List<String> literals = extractLiterals(question);
+            if (!literals.isEmpty()
+                && (lower.contains("where") || lower.contains("defined")
+                    || lower.contains("declared") || lower.contains("default")
+                    || lower.contains("constant") || lower.contains("value"))) {
+                Map<String, Object> valueResult = valuesQuery(question, literals);
+                if (valueResult != null) {
+                    return valueResult;
+                }
+            }
             if (lower.contains("method")) {
                 return classQuery(question, resolution, "methods",
                     "No class name found in the question");
@@ -1342,6 +1354,60 @@ public class GausVibeServer {
                 sb.append("  - ").append(p).append("\n");
             }
             return matched(question, "call-path", sb.toString(), count);
+        }
+
+        /**
+         * Extracts literal tokens from a question: quoted strings and
+         * digit sequences not glued to an identifier (so "method2" and
+         * package segments do not count).
+         */
+        private static final java.util.regex.Pattern LITERAL_PATTERN =
+            java.util.regex.Pattern.compile("\"([^\"]{1,200})\"|(?<![\\w.$-])\\d+(?:[-.]\\d+)*");
+
+        static List<String> extractLiterals(String question) {
+            List<String> literals = new ArrayList<>();
+            java.util.regex.Matcher m = LITERAL_PATTERN.matcher(question);
+            while (m.find() && literals.size() < 3) {
+                String quoted = m.group(1);
+                literals.add(quoted != null ? quoted : m.group());
+            }
+            return literals;
+        }
+
+        /**
+         * Answers value questions by searching the field-initializer
+         * value index. Returns null when nothing matches so the caller
+         * can fall through to other routes.
+         */
+        private Map<String, Object> valuesQuery(String question, List<String> literals) {
+            StringBuilder sb = new StringBuilder();
+            int total = 0;
+            for (String literal : literals) {
+                List<Indexes.ValueOccurrence> occurrences =
+                    queryEngine.getIndexes().findValuesContaining(literal, 20);
+                if (occurrences.isEmpty()) {
+                    continue;
+                }
+                sb.append("Literal '").append(literal).append("' in field initializers (")
+                  .append(occurrences.size()).append("):\n");
+                for (Indexes.ValueOccurrence occ : occurrences) {
+                    sb.append("  - ").append(occ.classFqn()).append(".").append(occ.fieldName())
+                      .append(" = \"").append(occ.value()).append("\"");
+                    if (occ.file() != null) {
+                        sb.append("  [").append(occ.file());
+                        if (occ.line() > 0) {
+                            sb.append(":").append(occ.line());
+                        }
+                        sb.append("]");
+                    }
+                    sb.append("\n");
+                    total++;
+                }
+            }
+            if (total == 0) {
+                return null;
+            }
+            return matched(question, "value-location", sb.toString(), total);
         }
 
         private Map<String, Object> callersQuery(String question, String methodName) {

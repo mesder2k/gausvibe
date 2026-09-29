@@ -20,6 +20,11 @@ public class GraphQueryEngine implements JavaGraphQuery {
     
     private final Graph graph;
     private final Indexes indexes;
+
+    /** Exposes the raw indexes for server-side routes (value index). */
+    public Indexes getIndexes() {
+        return indexes;
+    }
     
     // Text search index for efficient text queries
     private TextSearchIndex textSearchIndex = null;

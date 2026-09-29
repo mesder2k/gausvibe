@@ -459,6 +459,7 @@ public class GausVibeBuilder {
                 if (fieldNode != null) {
                     symbolTable.register(fieldNode);
                     edgeFactory.createHasField(classNode.getId(), fieldNode.getId());
+                    indexFieldInitializerValues(var, classNode, context);
                 }
             }
         } else if (member instanceof com.github.javaparser.ast.body.ClassOrInterfaceDeclaration) {
@@ -514,6 +515,36 @@ public class GausVibeBuilder {
         });
     }
     
+    /**
+     * Captures literal values from a field initializer into the value
+     * index, so questions like "where is 9200 defined" can be answered
+     * from the graph. Walks the whole initializer expression, including
+     * constructor-call arguments inside it (the Settings/Setting idiom).
+     */
+    private void indexFieldInitializerValues(
+            com.github.javaparser.ast.body.VariableDeclarator var,
+            ClassNode owner, VisitorContext context) {
+        var.getInitializer().ifPresent(init -> {
+            for (com.github.javaparser.ast.expr.LiteralExpr lit
+                    : init.findAll(com.github.javaparser.ast.expr.LiteralExpr.class)) {
+                if (lit instanceof com.github.javaparser.ast.expr.BooleanLiteralExpr) {
+                    continue;
+                }
+                String value = lit.toString();
+                if (lit instanceof com.github.javaparser.ast.expr.StringLiteralExpr) {
+                    value = ((com.github.javaparser.ast.expr.StringLiteralExpr) lit).getValue();
+                }
+                if (value == null || value.isBlank() || value.length() > 200) {
+                    continue;
+                }
+                int line = lit.getBegin().map(p -> p.line).orElse(0);
+                graph.getIndexes().indexValue(new Indexes.ValueOccurrence(
+                    value, owner.getQualifiedName(), var.getName().toString(),
+                    context.getCurrentFile(), line));
+            }
+        });
+    }
+
     /**
      * Processes a constructor body, mirroring processMethodBody.
      */
