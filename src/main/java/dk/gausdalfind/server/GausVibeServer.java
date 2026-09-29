@@ -1241,6 +1241,12 @@ public class GausVibeServer {
                     continue;
                 }
                 int score = matched * 40 + length;
+                // Prefer production methods: "validateIndexName" vs the test
+                // method "testValidateIndexName" have identical stems
+                if (m.getClassName() != null && engine.findClassByQualifiedName(m.getClassName())
+                        .filter(TestsHandler::isTestClass).isPresent()) {
+                    score -= 15;
+                }
                 // exact name match adds a bonus only when the name is rare:
                 // common names like get/index/build are not a signal
                 boolean exactRare = false;
