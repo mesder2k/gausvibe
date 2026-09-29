@@ -431,6 +431,21 @@ public class GausVibeBuilder {
                     context, nodeFactory, edgeFactory, methodNode
                 );
             }
+        } else if (member instanceof com.github.javaparser.ast.body.ConstructorDeclaration) {
+            MethodNode ctorNode = nodeFactory.createConstructor(
+                (com.github.javaparser.ast.body.ConstructorDeclaration) member
+            );
+            if (ctorNode != null) {
+                symbolTable.register(ctorNode);
+                edgeFactory.createHasMethod(classNode.getId(), ctorNode.getId());
+                
+                // Process constructor body (records call sites with the
+                // constructor as caller, and parameters)
+                processConstructorBody(
+                    (com.github.javaparser.ast.body.ConstructorDeclaration) member,
+                    context, nodeFactory, edgeFactory, ctorNode
+                );
+            }
         } else if (member instanceof com.github.javaparser.ast.body.FieldDeclaration) {
             com.github.javaparser.ast.body.FieldDeclaration fieldDecl = (com.github.javaparser.ast.body.FieldDeclaration) member;
             // FieldDeclaration can have multiple variables
@@ -492,6 +507,44 @@ public class GausVibeBuilder {
             context.setCurrentMethod(oldMethod);
             context.setCurrentMethodId(oldMethodId);
         });
+    }
+    
+    /**
+     * Processes a constructor body, mirroring processMethodBody.
+     */
+    private void processConstructorBody(
+            com.github.javaparser.ast.body.ConstructorDeclaration ctorDecl,
+            VisitorContext context,
+            NodeFactory nodeFactory,
+            EdgeFactory edgeFactory,
+            MethodNode ctorNode) {
+        
+        // Push method context
+        String oldMethod = context.getCurrentMethod();
+        String oldMethodId = context.getCurrentMethodId();
+        context.setCurrentMethod(ctorNode.getQualifiedName() + "#" + ctorNode.getSignature());
+        context.setCurrentMethodId(ctorNode.getId());
+        
+        // Process parameters
+        int paramIndex = 0;
+        for (var param : ctorDecl.getParameters()) {
+            ParameterNode paramNode = nodeFactory.createParameter(param);
+            if (paramNode != null) {
+                symbolTable.register(paramNode);
+                edgeFactory.createHasParameter(
+                    ctorNode.getId(), paramNode.getId(), paramIndex
+                );
+                paramIndex++;
+            }
+        }
+        
+        // Process statements using StatementVisitor
+        StatementVisitor stmtVisitor = new StatementVisitor(graph, context);
+        ctorDecl.getBody().accept(stmtVisitor, context);
+        
+        // Restore method context
+        context.setCurrentMethod(oldMethod);
+        context.setCurrentMethodId(oldMethodId);
     }
     
     /**

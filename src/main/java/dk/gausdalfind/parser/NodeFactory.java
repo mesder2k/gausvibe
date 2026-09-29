@@ -63,6 +63,8 @@ public class NodeFactory {
                 return createClass((ClassOrInterfaceDeclaration) null);
             } else if (astNode instanceof MethodDeclaration) {
                 return createMethod((MethodDeclaration) astNode);
+            } else if (astNode instanceof ConstructorDeclaration) {
+                return createConstructor((ConstructorDeclaration) astNode);
             } else if (astNode instanceof FieldDeclaration) {
                 return createField((FieldDeclaration) astNode);
             } else if (astNode instanceof Parameter) {
@@ -235,6 +237,77 @@ public class NodeFactory {
         MethodNode node = new MethodNode(
             id, name, signature, qualifiedName, returnType, modifiers,
             isConstructor, isStatic, thrownExceptions, file, startPos, endPos
+        );
+        
+        // Store in context
+        context.setCurrentMethod(qualifiedName + "#" + signature);
+        context.setCurrentMethodId(node.getId());
+        context.addSymbol(name, node);
+        
+        // Add to graph
+        if (graph.addNode(node)) {
+            nodeCache.put(node.getId(), node);
+        }
+        
+        return node;
+    }
+    
+    /**
+     * Creates a method node from a constructor declaration. Constructors
+     * are MethodNodes flagged isConstructor, so call sites like
+     * "new Foo(...)" can resolve to CALLS edges and count as coverage.
+     */
+    public MethodNode createConstructor(ConstructorDeclaration ctorDecl) {
+        if (ctorDecl == null) {
+            return null;
+        }
+        
+        String name = ctorDecl.getName().toString();
+        
+        // Build qualified name
+        String qualifiedName;
+        if (context.getCurrentClass() != null && !context.getCurrentClass().isBlank()) {
+            qualifiedName = context.getCurrentClass() + "." + name;
+        } else {
+            qualifiedName = name;
+        }
+        
+        // Build signature
+        StringBuilder sigBuilder = new StringBuilder();
+        sigBuilder.append(name).append("(");
+        boolean first = true;
+        for (Parameter param : ctorDecl.getParameters()) {
+            if (!first) {
+                sigBuilder.append(",");
+            }
+            sigBuilder.append(param.getType().toString());
+            first = false;
+        }
+        sigBuilder.append(")");
+        String signature = sigBuilder.toString();
+        
+        // Get modifiers
+        Set<String> modifiers = new HashSet<>();
+        ctorDecl.getModifiers().forEach(m -> modifiers.add(m.toString()));
+        
+        // Get thrown exceptions
+        List<String> thrownExceptions = new ArrayList<>();
+        for (ReferenceType ref : ctorDecl.getThrownExceptions()) {
+            thrownExceptions.add(ref.toString());
+        }
+        
+        Path file = context.getCurrentFile();
+        Position startPos = toPosition(ctorDecl.getBegin().orElse(null));
+        Position endPos = toPosition(ctorDecl.getEnd().orElse(null));
+        
+        // Constructor IDs use the same scheme as methods
+        String id = NodeIdGenerator.forDeclaration(
+            NodeIdGenerator.NodeType.METHOD, qualifiedName + "#" + signature
+        );
+        
+        MethodNode node = new MethodNode(
+            id, name, signature, qualifiedName, "void", modifiers,
+            true, false, thrownExceptions, file, startPos, endPos
         );
         
         // Store in context

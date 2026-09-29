@@ -37,7 +37,13 @@ public class Indexes {
     // ==================== Method Indexes ====================
     
     /** Maps method signature to MethodNode */
-    private final Map<String, MethodNode> methodsBySignature = new ConcurrentHashMap<>();
+    /**
+     * Maps method signature to MethodNodes. Must hold a LIST: methods in
+     * different classes share the same signature, and a single-value map
+     * silently dropped all but the last one, corrupting getAllMethods()
+     * and with it call-site resolution and test coverage.
+     */
+    private final Map<String, List<MethodNode>> methodsBySignature = new ConcurrentHashMap<>();
     
     /** Maps method name to list of MethodNodes */
     private final Map<String, List<MethodNode>> methodsByName = new ConcurrentHashMap<>();
@@ -137,7 +143,9 @@ public class Indexes {
         String name = method.getName();
         
         if (signature != null && !signature.isBlank()) {
-            methodsBySignature.put(signature, method);
+            methodsBySignature
+                .computeIfAbsent(signature, k -> Collections.synchronizedList(new ArrayList<>()))
+                .add(method);
         }
         if (name != null && !name.isBlank()) {
             methodsByName.computeIfAbsent(name, k -> Collections.synchronizedList(new ArrayList<>())).add(method);
@@ -269,7 +277,13 @@ public class Indexes {
         String name = method.getName();
         
         if (signature != null && !signature.isBlank()) {
-            methodsBySignature.remove(signature);
+            List<MethodNode> list = methodsBySignature.get(signature);
+            if (list != null) {
+                list.remove(method);
+                if (list.isEmpty()) {
+                    methodsBySignature.remove(signature, list);
+                }
+            }
         }
         if (name != null && !name.isBlank()) {
             List<MethodNode> list = methodsByName.get(name);
@@ -391,9 +405,15 @@ public class Indexes {
     
     // ==================== Method Lookup Methods ====================
     
-    /** Returns method by signature. */
+    /** Returns method by signature. If several classes declare the same
+     *  signature, one of them is returned. */
     public Optional<MethodNode> getMethodBySignature(String signature) {
-        return Optional.ofNullable(methodsBySignature.get(signature));
+        if (signature == null || signature.isBlank()) {
+            return Optional.empty();
+        }
+        List<MethodNode> methods = methodsBySignature.get(signature);
+        return methods == null || methods.isEmpty() ? Optional.empty()
+            : Optional.of(methods.get(0));
     }
     
     /** Returns all methods with a given name. */
@@ -403,9 +423,15 @@ public class Indexes {
         );
     }
     
-    /** Returns all methods. */
+    /** Returns all methods. Flattens methodsByName, which receives every
+     *  indexed method; methodsBySignature alone would undercount classes
+     *  that share signatures with others. */
     public List<MethodNode> getAllMethods() {
-        return Collections.unmodifiableList(new ArrayList<>(methodsBySignature.values()));
+        List<MethodNode> all = new ArrayList<>();
+        for (List<MethodNode> methods : methodsByName.values()) {
+            all.addAll(methods);
+        }
+        return Collections.unmodifiableList(all);
     }
     
     // ==================== Field Lookup Methods ====================

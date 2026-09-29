@@ -1754,18 +1754,24 @@ public class GausVibeServer {
          * source directory, or its name follows test conventions.
          */
         public static boolean isTestClass(ClassNode cls) {
+            String p = null;
+            Path file = cls.getFile();
+            if (file != null) {
+                p = file.toString().replace('\\', '/');
+            }
+            // Name heuristics must not apply to production sources: a class
+            // like "TestsHandler" in src/main is not a test.
+            if (p != null && p.contains("/src/main/")) {
+                return false;
+            }
             String name = cls.getName();
             if (name.endsWith("Test") || name.endsWith("Tests")
                 || name.endsWith("IT") || name.endsWith("TestCase")
                 || name.startsWith("Test")) {
                 return true;
             }
-            Path file = cls.getFile();
-            if (file != null) {
-                String p = file.toString().replace('\\', '/');
-                if (p.contains("/test/") || p.contains("/internalClusterTest/")) {
-                    return true;
-                }
+            if (p != null && (p.contains("/test/") || p.contains("/internalClusterTest/"))) {
+                return true;
             }
             return false;
         }

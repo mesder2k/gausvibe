@@ -51,6 +51,12 @@ class TestCoverageTest {
             "public class UnrelatedTest {\n" +
             "    public void testNothing() { System.out.println(\"x\"); }\n" +
             "}\n");
+        // production class with a test-like name: must NOT be a test class
+        writeFile("src/main/java/com/example/TestsHandler.java",
+            "package com.example;\n" +
+            "public class TestsHandler {\n" +
+            "    public void handle() { }\n" +
+            "}\n");
         
         GausVibeBuilder builder = new GausVibeBuilder(projectDir);
         builder.setIncludeTestSources(true);
@@ -92,11 +98,14 @@ class TestCoverageTest {
         ClassNode widgetTest = query.findClassByQualifiedName("com.example.WidgetTest").orElseThrow();
         ClassNode widget = query.findClassByQualifiedName("com.example.Widget").orElseThrow();
         ClassNode unrelated = query.findClassByQualifiedName("com.example.UnrelatedTest").orElseThrow();
+        ClassNode testsHandler = query.findClassByQualifiedName("com.example.TestsHandler").orElseThrow();
         
         assertTrue(GausVibeServer.TestsHandler.isTestClass(widgetTest));
         assertTrue(GausVibeServer.TestsHandler.isTestClass(unrelated));
         assertFalse(GausVibeServer.TestsHandler.isTestClass(widget),
             "production class in src/main is not a test class");
+        assertFalse(GausVibeServer.TestsHandler.isTestClass(testsHandler),
+            "test-like name in src/main is not a test class");
     }
 
     private static void writeFile(String relativePath, String content) throws IOException {

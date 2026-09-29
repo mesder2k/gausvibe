@@ -194,11 +194,12 @@ public class ASTSourceSerializer {
             }
         }
         
-        // Add methods
+        // Add methods (constructors are emitted by the loop below)
         for (dk.gausdalfind.model.Node node : allNodes) {
             if (node instanceof MethodNode) {
                 MethodNode method = (MethodNode) node;
-                if (classNode.getQualifiedName().equals(method.getClassName())) {
+                if (!method.isConstructor()
+                        && classNode.getQualifiedName().equals(method.getClassName())) {
                     classDecl.addMember(buildMethodDeclaration(method, allNodes));
                 }
             }
