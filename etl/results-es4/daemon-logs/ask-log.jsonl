@@ -1,0 +1,60 @@
+{"ts":"2026-09-29T18:02:30.432557Z","project":"server","question":"where is Strings defined","matched":"method-location","answer_bytes":581,"ok":true}
+{"ts":"2026-09-29T18:03:20.554529Z","project":"server","question":"where is HttpTransportSettings defined","matched":"class-location","answer_bytes":321,"ok":true}
+{"ts":"2026-09-29T18:03:20.593418Z","project":"server","question":"what fields does HttpTransportSettings have","matched":"fields","answer_bytes":10054,"ok":true}
+{"ts":"2026-09-29T18:03:39.278199Z","project":"server","question":"where is 9200 defined","matched":null,"answer_bytes":378,"ok":true}
+{"ts":"2026-09-29T18:03:39.304807Z","project":"server","question":"who calls SETTING_HTTP_PORT","matched":null,"answer_bytes":375,"ok":true}
+{"ts":"2026-09-29T18:03:39.335013Z","project":"server","question":"what fields does TransportSettings have","matched":"fields","answer_bytes":10488,"ok":true}
+{"ts":"2026-09-29T18:03:39.363224Z","project":"server","question":"what fields does BootstrapSettings have","matched":"fields","answer_bytes":846,"ok":true}
+{"ts":"2026-09-29T18:06:07.403973Z","project":"server","question":"who calls dispatchRequest","matched":"callers","answer_bytes":22275,"ok":true}
+{"ts":"2026-09-29T18:06:07.454052Z","project":"server","question":"who calls prepareRequest","matched":"callers","answer_bytes":24111,"ok":true}
+{"ts":"2026-09-29T18:06:07.498462Z","project":"server","question":"where is dispatchRequest defined","matched":"method-location","answer_bytes":422,"ok":true}
+{"ts":"2026-09-29T18:06:07.541779Z","project":"server","question":"who calls createIndex","matched":"callers","answer_bytes":11768,"ok":true}
+{"ts":"2026-09-29T18:06:21.079517Z","project":"server","question":"who calls handleRequest","matched":"callers","answer_bytes":2533,"ok":true}
+{"ts":"2026-09-29T18:06:21.144759Z","project":"server","question":"where is handleRequest defined","matched":"method-location","answer_bytes":353,"ok":true}
+{"ts":"2026-09-29T18:06:21.189465Z","project":"server","question":"who calls masterOperation","matched":"callers","answer_bytes":14449,"ok":true}
+{"ts":"2026-09-29T18:06:21.234144Z","project":"server","question":"who calls clusterManagerOperation","matched":null,"answer_bytes":381,"ok":true}
+{"ts":"2026-09-29T18:06:21.288502Z","project":"server","question":"who calls submitStateUpdateTask","matched":"callers","answer_bytes":729,"ok":true}
+{"ts":"2026-09-29T18:06:21.345588Z","project":"server","question":"what implements HttpServerTransport","matched":"implementations","answer_bytes":1338,"ok":true}
+{"ts":"2026-09-29T18:06:21.402455Z","project":"server","question":"who calls doExecute","matched":"callers","answer_bytes":16644,"ok":true}
+{"ts":"2026-09-29T18:30:05.257099Z","project":"server","question":"where is RestPutIndexAction defined","matched":null,"answer_bytes":392,"ok":true}
+{"ts":"2026-09-29T18:30:05.307962Z","project":"server","question":"where is Netty4HttpServerTransport defined","matched":null,"answer_bytes":399,"ok":true}
+{"ts":"2026-09-29T18:30:12.106747Z","project":"server","question":"where is dispatchRequest defined","matched":"method-location","answer_bytes":422,"ok":true}
+{"ts":"2026-09-29T18:30:12.147381Z","project":"server","question":"where is prepareRequest defined","matched":"method-location","answer_bytes":385,"ok":true}
+{"ts":"2026-09-29T18:30:12.187306Z","project":"server","question":"where is masterOperation defined","matched":"method-location","answer_bytes":444,"ok":true}
+{"ts":"2026-09-29T18:30:12.230493Z","project":"server","question":"where is tryAllHandlers defined","matched":"method-location","answer_bytes":319,"ok":true}
+{"ts":"2026-09-29T18:30:12.268708Z","project":"server","question":"where is maybeAggregateAndDispatchRequest defined","matched":"method-location","answer_bytes":400,"ok":true}
+{"ts":"2026-09-29T18:30:16.521330Z","project":"server","question":"who calls dispatchRequest","matched":"callers","answer_bytes":22275,"ok":true}
+{"ts":"2026-09-29T18:30:16.563848Z","project":"server","question":"who calls tryAllHandlers","matched":"callers","answer_bytes":385,"ok":true}
+{"ts":"2026-09-29T18:30:16.617579Z","project":"server","question":"who calls maybeAggregateAndDispatchRequest","matched":"callers","answer_bytes":465,"ok":true}
+{"ts":"2026-09-29T18:30:16.658475Z","project":"server","question":"who calls prepareRequest","matched":"callers","answer_bytes":24111,"ok":true}
+{"ts":"2026-09-29T18:30:16.715122Z","project":"server","question":"who calls handleRequest","matched":"callers","answer_bytes":2533,"ok":true}
+{"ts":"2026-09-29T18:30:16.756111Z","project":"server","question":"who calls masterOperation","matched":"callers","answer_bytes":14449,"ok":true}
+{"ts":"2026-09-29T18:30:16.812092Z","project":"server","question":"who calls createIndex","matched":"callers","answer_bytes":11768,"ok":true}
+{"ts":"2026-09-29T18:30:16.856345Z","project":"server","question":"who calls applyCreateIndexRequest","matched":"callers","answer_bytes":1818,"ok":true}
+{"ts":"2026-09-29T18:30:16.911797Z","project":"server","question":"who calls createIndexService","matched":"callers","answer_bytes":904,"ok":true}
+{"ts":"2026-09-29T18:30:24.813478Z","project":"server","question":"who calls handleRequest","matched":"callers","answer_bytes":2533,"ok":true}
+{"ts":"2026-09-29T18:30:24.856829Z","project":"server","question":"who calls masterOperation","matched":"callers","answer_bytes":14449,"ok":true}
+{"ts":"2026-09-29T18:30:24.912437Z","project":"server","question":"who calls createIndex","matched":"callers","answer_bytes":11768,"ok":true}
+{"ts":"2026-09-29T18:30:24.954605Z","project":"server","question":"who calls applyCreateIndexRequest","matched":"callers","answer_bytes":1818,"ok":true}
+{"ts":"2026-09-29T18:30:25.010138Z","project":"server","question":"who calls createIndexService","matched":"callers","answer_bytes":904,"ok":true}
+{"ts":"2026-09-29T18:30:25.052994Z","project":"server","question":"who calls executeMasterOperation","matched":"callers","answer_bytes":488,"ok":true}
+{"ts":"2026-09-29T18:30:25.108280Z","project":"server","question":"who calls doExecute","matched":"callers","answer_bytes":16644,"ok":true}
+{"ts":"2026-09-29T18:30:32.933906Z","project":"server","question":"who calls onlyCreateIndex","matched":"callers","answer_bytes":513,"ok":true}
+{"ts":"2026-09-29T18:30:32.975389Z","project":"server","question":"who calls applyCreateIndexWithTemporaryService","matched":"callers","answer_bytes":2288,"ok":true}
+{"ts":"2026-09-29T18:30:33.028609Z","project":"server","question":"who calls buildAndValidateTemporaryIndexMetadata","matched":"callers","answer_bytes":2088,"ok":true}
+{"ts":"2026-09-29T18:30:33.072775Z","project":"server","question":"who calls validateIndexName","matched":"callers","answer_bytes":507,"ok":true}
+{"ts":"2026-09-29T18:30:33.120775Z","project":"server","question":"who calls clusterStateCreateIndex","matched":"callers","answer_bytes":1799,"ok":true}
+{"ts":"2026-09-29T18:30:40.645005Z","project":"server","question":"who calls createIndex","matched":"callers","answer_bytes":11768,"ok":true}
+{"ts":"2026-09-29T18:30:40.688387Z","project":"server","question":"who calls doExecuteForking","matched":"callers","answer_bytes":203,"ok":true}
+{"ts":"2026-09-29T18:30:40.733010Z","project":"server","question":"what fields does TransportCreateIndexAction have","matched":"fields","answer_bytes":1555,"ok":true}
+{"ts":"2026-09-29T18:31:04.432551Z","project":"server","question":"who calls withTempIndexService","matched":"callers","answer_bytes":3639,"ok":true}
+{"ts":"2026-09-29T18:31:04.474579Z","project":"server","question":"who calls updateIndexMappingsAndBuildSortOrder","matched":"callers","answer_bytes":658,"ok":true}
+{"ts":"2026-09-29T18:31:04.529770Z","project":"server","question":"who calls handleIncomingRequest","matched":"callers","answer_bytes":428,"ok":true}
+{"ts":"2026-09-29T18:31:04.575104Z","project":"server","question":"who calls incomingRequest","matched":"callers","answer_bytes":1150,"ok":true}
+{"ts":"2026-09-29T18:31:04.624598Z","project":"server","question":"who calls serverAcceptedChannel","matched":"callers","answer_bytes":471,"ok":true}
+{"ts":"2026-09-29T18:31:04.668707Z","project":"server","question":"who calls getAllHandlers","matched":"callers","answer_bytes":2051,"ok":true}
+{"ts":"2026-09-29T18:32:57.594666Z","project":"server","question":"which tests verify IndexNameExpressionResolver","matched":"tests","answer_bytes":7761,"ok":true}
+{"ts":"2026-09-29T18:32:57.723638Z","project":"server","question":"which tests verify MetadataCreateIndexService","matched":"tests","answer_bytes":2828,"ok":true}
+{"ts":"2026-09-29T18:33:02.131064Z","project":"server","question":"where is validateIndexName defined","matched":"method-location","answer_bytes":544,"ok":true}
+{"ts":"2026-09-29T18:33:06.652135Z","project":"server","question":"who calls validateIndexName","matched":"callers","answer_bytes":507,"ok":true}
+{"ts":"2026-09-29T18:33:35.806302Z","project":"server","question":"where is hasText defined","matched":"method-location","answer_bytes":411,"ok":true}
