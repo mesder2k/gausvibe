@@ -161,7 +161,11 @@ public class NodeFactory {
         );
         
         // Store in context
-        context.setCurrentClass(qualifiedName);
+        // NOTE: deliberately NOT calling setCurrentClass here. Callers own
+        // the class context (and must save/restore it around nested types);
+        // a side effect here made builders capture the nested name as the
+        // "old" class, permanently corrupting every member parsed after a
+        // nested type in the same file.
         context.addSymbol(name, node);
         
         // Add to graph

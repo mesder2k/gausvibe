@@ -89,16 +89,20 @@ public class DeclarationVisitor extends VoidVisitorAdapter<VisitorContext> {
     @Override
     public void visit(ClassOrInterfaceDeclaration classDecl, VisitorContext context) {
         super.visit(classDecl, context);
-        
+
         // Create the class node
         ClassNode classNode = nodeFactory.createClass(classDecl);
         if (classNode == null) {
             return;
         }
-        
+
+        // Push class context (createClass no longer sets it as a side effect)
+        String oldClass = context.getCurrentClass();
+        context.setCurrentClass(classNode.getQualifiedName());
+
         // Push class onto parent stack
         parentStack.push(classNode);
-        
+
         // Process class members (fields, methods, nested classes)
         for (BodyDeclaration<?> member : classDecl.getMembers()) {
             member.accept(this, context);
@@ -124,6 +128,8 @@ public class DeclarationVisitor extends VoidVisitorAdapter<VisitorContext> {
         
         // Pop class from parent stack
         parentStack.pop();
+        // Restore class context
+        context.setCurrentClass(oldClass);
     }
     
     /**

@@ -387,16 +387,19 @@ public class GausVibeBuilder {
      * Processes a class or interface declaration.
      */
     private void processClassOrInterface(com.github.javaparser.ast.body.ClassOrInterfaceDeclaration classDecl, VisitorContext context) {
+        // Capture the outer class BEFORE createClass (which must stay
+        // side-effect free) so nested types restore the right context
+        String outerClass = context.getCurrentClass();
         // Use NodeFactory to create the class node
         NodeFactory nodeFactory = new NodeFactory(graph, context);
         ClassNode classNode = nodeFactory.createClass(classDecl);
         if (classNode == null) {
             return;
         }
-        
+
         // Register in symbol table
         symbolTable.register(classNode);
-        
+
         // Push class context
         String oldClass = context.getCurrentClass();
         context.setCurrentClass(classNode.getQualifiedName());
