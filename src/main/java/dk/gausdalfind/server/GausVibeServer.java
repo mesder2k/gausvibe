@@ -65,6 +65,12 @@ public class GausVibeServer {
     private static final Deque<Map<String, Object>> recentEdits = new java.util.concurrent.ConcurrentLinkedDeque<>();
     private static final int MAX_RECENT_EDITS = 200;
 
+    // Staleness detection + background rebuild
+    private static StalenessMonitor staleness;
+    private static final java.util.concurrent.atomic.AtomicBoolean refreshing =
+        new java.util.concurrent.atomic.AtomicBoolean(false);
+    private static final Object SWAP_LOCK = new Object();
+
     public static String getProjectPath() {
         return projectPath;
     }
@@ -90,6 +96,15 @@ public class GausVibeServer {
         graph.getIndexes().enableCallGraphIndex();
         graph.getIndexes().getCallGraphIndex()
             .indexCalls(graph.getIndexes().getEdgesByType(EdgeTypes.CALLS));
+        
+        // Capture the file baseline for staleness detection
+        staleness = new StalenessMonitor(Path.of(projectPath));
+        try {
+            staleness.captureBaseline();
+        } catch (java.io.IOException e) {
+            System.err.println("Warning: staleness baseline capture failed: " + e.getMessage());
+            staleness = null;
+        }
         
         System.out.println("Graph built: " + graph.getNodeCount() + " nodes, " + graph.getEdgeCount() + " edges");
 
@@ -149,6 +164,7 @@ public class GausVibeServer {
         server.createContext("/changes", new ChangesHandler());
         server.createContext("/tests", new TestsHandler());
         server.createContext("/callpath", new CallPathHandler());
+        server.createContext("/refresh", new RefreshHandler());
         server.createContext("/classes/", new ClassDetailHandler());
     }
     
@@ -273,6 +289,7 @@ public class GausVibeServer {
             endpoints.put("GET /changes", "Recent file updates reported via POST /edited");
             endpoints.put("GET /tests/{fqn}", "Tests covering a class (by name convention and call graph)");
             endpoints.put("GET /callpath?from=A&to=B", "Transitive call chains between two methods");
+            endpoints.put("POST /refresh", "Full background rebuild; old graph serves until the swap");
             info.put("endpoints", endpoints);
             
             return toJson(info);
@@ -286,6 +303,11 @@ public class GausVibeServer {
             stats.put("project", projectPath);
             stats.put("nodes", graph.getNodeCount());
             stats.put("edges", graph.getEdgeCount());
+            stats.put("rebuilding", refreshing.get());
+            if (staleness != null) {
+                stats.put("stale", staleness.isStale());
+                stats.put("stale_files", staleness.getChangedFiles().size());
+            }
             return toJson(stats);
         }
     }
@@ -831,6 +853,19 @@ public class GausVibeServer {
             }
 
             Map<String, Object> result = answerQuestion(question);
+            
+            // Stamp the response as stale when the project changed on disk
+            if (staleness != null) {
+                staleness.checkIfDue();
+                if (staleness.isStale()) {
+                    result.put("stale", true);
+                    result.put("stale_files", staleness.getChangedFiles().size());
+                    result.put("stale_hint", "Files changed since the graph was built; "
+                        + "POST /edited with the changed paths for a targeted update, "
+                        + "or POST /refresh for a full background rebuild.");
+                }
+            }
+            
             String json = toJson(result);
 
             if (questionLogger != null) {
@@ -1820,6 +1855,65 @@ public class GausVibeServer {
             .filter(n -> n instanceof MethodNode)
             .map(n -> ((MethodNode) n).getQualifiedName())
             .orElse(methodId);
+    }
+
+    /**
+     * Background rebuild endpoint: POST /refresh rebuilds the whole graph
+     * on a worker thread and swaps it in when done. The old graph keeps
+     * serving queries during the rebuild.
+     */
+    static class RefreshHandler extends BaseHandler {
+        @Override
+        protected String handleRequest(HttpExchange exchange) {
+            if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+                return responseJson(400, Map.of("error", "Use POST /refresh"));
+            }
+            if (!refreshing.compareAndSet(false, true)) {
+                return toJson(Map.of("rebuilding", true, "detail", "A rebuild is already in progress"));
+            }
+            
+            Thread t = new Thread(() -> {
+                try {
+                    System.out.println("Refresh: rebuilding graph for " + projectPath);
+                    GausVibeBuilder newBuilder = new GausVibeBuilder(Path.of(projectPath));
+                    newBuilder.setParallel(true);
+                    newBuilder.setIncludeTestSources(true);
+                    Graph newGraph = newBuilder.build();
+                    newGraph.getIndexes().enableCallGraphIndex();
+                    newGraph.getIndexes().getCallGraphIndex()
+                        .indexCalls(newGraph.getIndexes().getEdgesByType(EdgeTypes.CALLS));
+                    
+                    // Swap atomically. Handlers may serve one request from a
+                    // mixed old/new state during the swap itself; queries use
+                    // queryEngine, which is assigned last.
+                    synchronized (SWAP_LOCK) {
+                        builder = newBuilder;
+                        graph = newGraph;
+                        queryEngine = new GraphQueryEngine(newGraph);
+                    }
+                    if (staleness != null) {
+                        try {
+                            staleness.captureBaseline();
+                        } catch (java.io.IOException e) {
+                            System.err.println("Warning: baseline recapture failed: " + e.getMessage());
+                        }
+                    }
+                    System.out.println("Refresh complete: " + newGraph.getNodeCount()
+                        + " nodes, " + newGraph.getEdgeCount() + " edges");
+                } catch (Exception e) {
+                    String cause = e.getCause() != null ? " (cause: " + e.getCause() + ")" : "";
+                    System.err.println("Refresh failed: " + e.getClass().getSimpleName()
+                        + ": " + e.getMessage() + cause);
+                } finally {
+                    refreshing.set(false);
+                }
+            }, "gausvibe-refresh");
+            t.setDaemon(true);
+            t.start();
+            
+            return toJson(Map.of("rebuilding", true,
+                "detail", "Rebuilding in the background; old graph serves until the swap"));
+        }
     }
 
     static class SearchHandler extends BaseHandler {
