@@ -37,6 +37,33 @@ class McpServerTest {
             exchange.getResponseBody().write(body);
             exchange.close();
         });
+        fakeDaemon.createContext("/classes", exchange -> {
+            String echo = exchange.getRequestURI().getPath() + "?"
+                + exchange.getRequestURI().getQuery();
+            byte[] body = ("{\"echo\":\"" + echo + "\"}").getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        fakeDaemon.createContext("/packages", exchange -> {
+            byte[] body = "{\"count\":1,\"packages\":[\"com.example\"]}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        fakeDaemon.createContext("/search", exchange -> {
+            String q = exchange.getRequestURI().getQuery();
+            String name = java.net.URLDecoder.decode(
+                q == null ? "" : q.substring(2), StandardCharsets.UTF_8);
+            byte[] body = ("{\"type\":\"class\",\"query\":\"" + name + "\",\"count\":1,"
+                + "\"results\":[\"com.example." + name + "\"]}").getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
         fakeDaemon.start();
         fakeUrl = "http://localhost:" + fakeDaemon.getAddress().getPort();
     }
@@ -86,7 +113,101 @@ class McpServerTest {
             }
         }
         assertTrue(hasAsk, "ask tool advertised");
-        assertTrue(tools.size() >= 7, "all tools advertised: " + tools.size());
+        assertTrue(tools.size() >= 12, "all tools advertised: " + tools.size());
+    }
+
+    @Test
+    void deterministicToolsAdvertised() {
+        GausVibeMcpServer server = new GausVibeMcpServer(fakeUrl);
+        String resp = server.handleLine("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}");
+        JsonObject o = JsonParser.parseString(resp).getAsJsonObject();
+        var tools = o.getAsJsonObject("result").getAsJsonArray("tools");
+        for (String name : new String[]{"search", "class_detail", "class_members", "classes", "packages"}) {
+            boolean found = false;
+            for (var t : tools) {
+                if (t.getAsJsonObject().get("name").getAsString().equals(name)) {
+                    found = true;
+                    break;
+                }
+            }
+            assertTrue(found, name + " tool advertised");
+        }
+    }
+
+    @Test
+    void askDescriptionDiscouragesFreeForm() {
+        GausVibeMcpServer server = new GausVibeMcpServer(fakeUrl);
+        String resp = server.handleLine("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}");
+        JsonObject o = JsonParser.parseString(resp).getAsJsonObject();
+        var tools = o.getAsJsonObject("result").getAsJsonArray("tools");
+        String askDescription = null;
+        for (var t : tools) {
+            if (t.getAsJsonObject().get("name").getAsString().equals("ask")) {
+                askDescription = t.getAsJsonObject().get("description").getAsString();
+            }
+        }
+        assertNotNull(askDescription);
+        assertFalse(askDescription.contains("plain-language"), "no plain-language framing");
+        assertTrue(askDescription.contains("NOT free-form"));
+        assertTrue(askDescription.contains("search"), "redirects to deterministic tools");
+    }
+
+    @Test
+    void classesRequiresPackageOrPrefix() {
+        GausVibeMcpServer server = new GausVibeMcpServer(fakeUrl);
+        String resp = server.handleLine("{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\","
+            + "\"params\":{\"name\":\"classes\",\"arguments\":{}}}");
+        JsonObject o = JsonParser.parseString(resp).getAsJsonObject();
+        assertTrue(o.getAsJsonObject("result").get("isError").getAsBoolean(),
+            "unfiltered listing rejected");
+        String text = o.getAsJsonObject("result").getAsJsonArray("content")
+            .get(0).getAsJsonObject().get("text").getAsString();
+        assertTrue(text.contains("package") && text.contains("prefix"),
+            "error names the required filters: " + text);
+    }
+
+    @Test
+    void classesProxyPassesFilters() {
+        GausVibeMcpServer server = new GausVibeMcpServer(fakeUrl);
+        String resp = server.handleLine("{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\","
+            + "\"params\":{\"name\":\"classes\",\"arguments\":{\"package\":\"dk.gausdalfind.server\",\"limit\":10}}}");
+        JsonObject o = JsonParser.parseString(resp).getAsJsonObject();
+        assertFalse(o.getAsJsonObject("result").has("isError"));
+        String text = o.getAsJsonObject("result").getAsJsonArray("content")
+            .get(0).getAsJsonObject().get("text").getAsString();
+        assertTrue(text.contains("package=dk.gausdalfind.server"),
+            "package filter forwarded: " + text);
+        assertTrue(text.contains("limit=10"), "limit forwarded: " + text);
+    }
+
+    @Test
+    void classMembersDefaultsToMethodsAndValidatesRelation() {
+        GausVibeMcpServer server = new GausVibeMcpServer(fakeUrl);
+
+        String resp = server.handleLine("{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"tools/call\","
+            + "\"params\":{\"name\":\"class_members\",\"arguments\":{\"class_fqn\":\"com.example.Foo\"}}}");
+        JsonObject o = JsonParser.parseString(resp).getAsJsonObject();
+        String text = o.getAsJsonObject("result").getAsJsonArray("content")
+            .get(0).getAsJsonObject().get("text").getAsString();
+        assertTrue(text.contains("com.example.Foo/methods"), "defaults to methods: " + text);
+
+        resp = server.handleLine("{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\","
+            + "\"params\":{\"name\":\"class_members\",\"arguments\":"
+            + "{\"class_fqn\":\"com.example.Foo\",\"relation\":\"bogus\"}}}");
+        o = JsonParser.parseString(resp).getAsJsonObject();
+        assertTrue(o.getAsJsonObject("result").get("isError").getAsBoolean(),
+            "invalid relation rejected");
+    }
+
+    @Test
+    void searchProxiesName() {
+        GausVibeMcpServer server = new GausVibeMcpServer(fakeUrl);
+        String resp = server.handleLine("{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"tools/call\","
+            + "\"params\":{\"name\":\"search\",\"arguments\":{\"name\":\"MetadataCreateIndexService\"}}}");
+        JsonObject o = JsonParser.parseString(resp).getAsJsonObject();
+        String text = o.getAsJsonObject("result").getAsJsonArray("content")
+            .get(0).getAsJsonObject().get("text").getAsString();
+        assertTrue(text.contains("MetadataCreateIndexService"), "name round-trips: " + text);
     }
 
     @Test

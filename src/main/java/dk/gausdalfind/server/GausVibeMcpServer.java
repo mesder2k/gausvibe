@@ -287,14 +287,16 @@ public class GausVibeMcpServer {
 
     static {
         put(new ToolDef("ask",
-            "Answer a plain-language structural question about the indexed Java codebase: "
-                + "where a class or method is defined, what implements or subclasses a type, "
-                + "who calls a method, which tests verify a class, how execution flows from "
-                + "method A to method B, what methods/fields a class has. PREFER this over "
-                + "grep/find/rg for questions about Java code structure - the answer is exact, "
-                + "bounded, and includes file references. The response reports the matched "
-                + "query type; matched=null means GausVibe could not answer - then fall back "
-                + "to grep for that question.",
+            "Answer a structural question about a Java symbol you can NAME exactly. "
+                + "Supported patterns ONLY: 'where is <X> defined' (class or method location), "
+                + "'what methods does <X> have', 'what fields does <X> have', "
+                + "'what implements <I>' / 'what subclasses <C>', 'who calls <M>' (method), "
+                + "'which tests verify <C>' (class). <X> must be an exact class or method "
+                + "name from the indexed codebase. NOT free-form: no listing, enumeration, "
+                + "or partial-name search - use the search, classes, packages, or "
+                + "class_detail tools for those, and the callpath tool for execution flow. "
+                + "The response reports the matched query type; matched=null means GausVibe "
+                + "could not answer - then fall back to grep for that question.",
             Map.of("question", Map.of("type", "string",
                     "description", "The question, e.g. 'who calls registerHandler' or 'which tests verify MetadataCreateIndexService'")),
             java.util.Set.of("question"),
@@ -329,6 +331,84 @@ public class GausVibeMcpServer {
                 }
                 return httpGet(http, url.toString());
             }));
+
+        put(new ToolDef("search",
+            "Find a class or method by exact simple NAME (a symbol name, not a sentence). "
+                + "Deterministic lookup, no question parsing: classes first, then methods. "
+                + "Use this instead of ask whenever you only have a name - and before "
+                + "grepping for a symbol.",
+            Map.of("name", Map.of("type", "string",
+                "description", "Exact symbol name, e.g. MetadataCreateIndexService")),
+            java.util.Set.of("name"),
+            (args, http, base) -> httpGet(http, base + "/search?q=" + urlEncode(getString(args, "name")))));
+
+        put(new ToolDef("class_detail",
+            "Get a class's details by fully qualified name: file path, method and field "
+                + "counts, superclass, interfaces.",
+            Map.of("class_fqn", Map.of("type", "string",
+                "description", "Fully qualified class name, e.g. org.elasticsearch.cluster.metadata.MetadataCreateIndexService")),
+            java.util.Set.of("class_fqn"),
+            (args, http, base) -> httpGet(http, base + "/classes/" + urlEncode(getString(args, "class_fqn")))));
+
+        put(new ToolDef("class_members",
+            "List a class's members or relations by fully qualified name: its methods "
+                + "(default), its subclasses, or the implementations of an interface.",
+            Map.of(
+                "class_fqn", Map.of("type", "string", "description", "Fully qualified class or interface name"),
+                "relation", Map.of("type", "string",
+                    "description", "methods | subclasses | implementations (default: methods)")),
+            java.util.Set.of("class_fqn"),
+            (args, http, base) -> {
+                String relation = getString(args, "relation");
+                if (relation == null || relation.isEmpty()) {
+                    relation = "methods";
+                }
+                if (!relation.equals("methods") && !relation.equals("subclasses")
+                        && !relation.equals("implementations")) {
+                    throw new IllegalArgumentException(
+                        "relation must be methods, subclasses, or implementations, got: " + relation);
+                }
+                return httpGet(http, base + "/classes/" + urlEncode(getString(args, "class_fqn"))
+                    + "/" + relation);
+            }));
+
+        put(new ToolDef("classes",
+            "List classes in the indexed codebase filtered by Java package (e.g. "
+                + "'org.elasticsearch.cluster.metadata') or fully-qualified-name prefix. "
+                + "One of package/prefix is REQUIRED - there is no unfiltered class listing. "
+                + "Returns at most 'limit' names plus the total match count.",
+            Map.of(
+                "package", Map.of("type", "string", "description", "Package filter, e.g. org.elasticsearch.cluster"),
+                "prefix", Map.of("type", "string", "description", "Fully-qualified-name prefix filter"),
+                "limit", Map.of("type", "integer", "description", "Max names to return (default 500, cap 1000)")),
+            java.util.Set.of(),
+            (args, http, base) -> {
+                String pkg = getString(args, "package");
+                String prefix = getString(args, "prefix");
+                if ((pkg == null || pkg.isEmpty()) && (prefix == null || prefix.isEmpty())) {
+                    throw new IllegalArgumentException(
+                        "Provide 'package' or 'prefix' - unfiltered class listing is not supported");
+                }
+                int limit = 500;
+                if (args.has("limit") && !args.get("limit").isJsonNull()) {
+                    limit = Math.min(1000, Math.max(1, args.get("limit").getAsInt()));
+                }
+                StringBuilder url = new StringBuilder(base).append("/classes?");
+                if (pkg != null && !pkg.isEmpty()) {
+                    url.append("package=").append(urlEncode(pkg)).append("&");
+                }
+                if (prefix != null && !prefix.isEmpty()) {
+                    url.append("prefix=").append(urlEncode(prefix)).append("&");
+                }
+                url.append("limit=").append(limit);
+                return httpGet(http, url.toString());
+            }));
+
+        put(new ToolDef("packages",
+            "List all Java packages in the indexed codebase.",
+            Map.of(),
+            java.util.Set.of(),
+            (args, http, base) -> httpGet(http, base + "/packages")));
 
         put(new ToolDef("edited",
             "Report that you edited a Java file in the indexed project. GausVibe reparses "

@@ -273,7 +273,7 @@ public class GausVibeServer {
             
             Map<String, Object> endpoints = new LinkedHashMap<>();
             endpoints.put("GET /", "Server info");
-            endpoints.put("GET /classes", "List all classes");
+            endpoints.put("GET /classes", "List classes (optional ?package=X&prefix=Y&limit=N filters; 'count' is the returned slice, 'total' all matches)");
             endpoints.put("GET /classes/{fqn}", "Class details");
             endpoints.put("GET /classes/{fqn}/methods", "Methods of class");
             endpoints.put("GET /classes/{fqn}/subclasses", "Subclasses");
@@ -315,14 +315,35 @@ public class GausVibeServer {
     static class ClassesHandler extends BaseHandler {
         @Override
         protected String handleRequest(HttpExchange exchange) {
+            Map<String, String> params = getQueryParams(exchange.getRequestURI().getQuery());
+            String pkg = params.get("package");
+            String prefix = params.get("prefix");
+            String limitParam = params.get("limit");
+            
             List<String> classNames = new ArrayList<>();
             for (ClassNode cls : queryEngine.getAllClasses()) {
-                classNames.add(cls.getQualifiedName());
+                String qn = cls.getQualifiedName();
+                if (pkg != null && !pkg.isEmpty() && !qn.startsWith(pkg + ".")) {
+                    continue;
+                }
+                if (prefix != null && !prefix.isEmpty() && !qn.startsWith(prefix)) {
+                    continue;
+                }
+                classNames.add(qn);
             }
             Collections.sort(classNames);
             
+            int total = classNames.size();
+            if (limitParam != null && !limitParam.isEmpty()) {
+                int limit = Integer.parseInt(limitParam);
+                if (limit >= 0 && classNames.size() > limit) {
+                    classNames = classNames.subList(0, limit);
+                }
+            }
+            
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("count", classNames.size());
+            result.put("total", total);
             result.put("classes", classNames);
             return toJson(result);
         }

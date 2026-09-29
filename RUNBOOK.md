@@ -56,9 +56,19 @@ for URL encoding (no python needed).
 
 The gausvibe plugin (`~/.vibe/plugins/gausvibe/`) ships `mcp.json` with the
 `gausvibe` stdio server. Tools appear as `gausvibe_ask`, `gausvibe_tests`,
-`gausvibe_callpath`, `gausvibe_edited`, `gausvibe_feedback`, `gausvibe_changes`,
+`gausvibe_callpath`, `gausvibe_search`, `gausvibe_class_detail`,
+`gausvibe_class_members`, `gausvibe_classes`, `gausvibe_packages`,
+`gausvibe_edited`, `gausvibe_feedback`, `gausvibe_changes`,
 `gausvibe_stats` - but ONLY in sessions started AFTER the plugin files
 existed. Mid-session `/reload-plugins` is unreliable (see Vibe bugs).
+
+`ask` is restricted to named-symbol structural questions (its description
+enumerates the supported patterns); listing, enumeration, and name lookup
+go through the deterministic tools (`search`, `classes` - requires a
+`package` or `prefix` filter and caps at `limit` (default 500),
+`class_detail`, `class_members`, `packages`). `/classes` on the daemon
+gained `?package=&prefix=&limit=` filters and returns `count` (slice) plus
+`total` (all matches).
 
 Classpath embedded in `mcp.json` args[1] must be regenerated when
 dependencies change:
