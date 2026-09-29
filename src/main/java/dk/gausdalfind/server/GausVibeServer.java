@@ -1341,12 +1341,20 @@ public class GausVibeServer {
             if (resolution.fqn() != null) {
                 return classQuery(question, resolution, "class-location", null);
             }
-            if (methodName != null) {
+            // An exact method-name match only wins when the name is rare:
+            // "where is index name validation defined" must not match the
+            // dozens of methods literally named index() over the fuzzy
+            // resolution validateIndexName
+            if (methodName != null
+                && queryEngine.findMethodsByName(methodName).size() <= 3) {
                 return methodQuery(question, methodName);
             }
             if (fuzzyMethod != null) {
                 // "where is index name validation performed" -> validateIndexName
                 return methodDetailQuery(question, fuzzyMethod);
+            }
+            if (methodName != null) {
+                return methodQuery(question, methodName);
             }
             if (resolution.ambiguous() != null && !resolution.ambiguous().isEmpty()) {
                 Map<String, Object> result = unmatched(question, null, null);
