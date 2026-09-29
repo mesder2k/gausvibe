@@ -255,6 +255,29 @@ def parse_unified_child(child_dir: Path):
     events = []
     pending = {}
     first_user = ""
+    token_usage = {"input_tokens": 0, "cached_input_tokens": 0, "output_tokens": 0, "llm_calls": 0}
+
+    # LLM token usage lives in the journal's action results (llm_call).
+    # Token cost is the primary experiment metric: input tokens are the
+    # cumulative context re-reads that tool results drive.
+    for jf in child_dir.glob("journal/*.jsonl"):
+        try:
+            with open(jf) as fh:
+                for line in fh:
+                    try:
+                        rec = json.loads(line)
+                    except Exception:
+                        continue
+                    usage = ((rec.get("payload") or {}).get("result") or {})
+                    usage = (usage.get("result") or {}).get("usage")
+                    if usage:
+                        token_usage["input_tokens"] += usage.get("input_tokens", 0)
+                        token_usage["cached_input_tokens"] += usage.get("cached_input_tokens", 0)
+                        token_usage["output_tokens"] += usage.get("output_tokens", 0)
+                        token_usage["llm_calls"] += 1
+        except Exception:
+            continue
+
     for e in entries:
         msg = e.get("message") or {}
         role = msg.get("role")
@@ -309,7 +332,14 @@ def parse_unified_child(child_dir: Path):
             )
     for ev in events:
         ev.pop("_resolved", None)
-    return {"meta": {"task": first_user[:200], "child": child_dir.name}, "events": events}
+    return {
+        "meta": {
+            "task": first_user[:200],
+            "child": child_dir.name,
+            "tokens": token_usage,
+        },
+        "events": events,
+    }
 
 
 def parse_session(session_dir: Path):
@@ -426,6 +456,7 @@ def analyze_session(parsed):
         "read_bytes_pre_mutation": bytes_pre,
         "read_bytes_post_mutation": bytes_post,
         "total_result_bytes": total_bytes,
+        "tokens": meta.get("tokens") or {},
         "prompt_tokens": stats.get("session_prompt_tokens", 0),
         "completion_tokens": stats.get("session_completion_tokens", 0),
         "first_mutation_index": first_mut_idx,
@@ -591,6 +622,9 @@ def main():
                     "n_tool_calls": s["n_tool_calls"],
                     "n_read_calls": s["n_read_calls"],
                     "total_result_bytes": s["total_result_bytes"],
+                    "input_tokens": (s.get("tokens") or {}).get("input_tokens", 0),
+                    "cached_input_tokens": (s.get("tokens") or {}).get("cached_input_tokens", 0),
+                    "output_tokens": (s.get("tokens") or {}).get("output_tokens", 0),
                     "first_mutation_index": s["first_mutation_index"],
                 } for s in experiments
             ],
