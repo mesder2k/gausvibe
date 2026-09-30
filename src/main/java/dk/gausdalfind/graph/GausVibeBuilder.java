@@ -470,6 +470,11 @@ public class GausVibeBuilder {
                 (com.github.javaparser.ast.body.ClassOrInterfaceDeclaration) member,
                 context
             );
+        } else if (member instanceof com.github.javaparser.ast.body.RecordDeclaration) {
+            processRecord(
+                (com.github.javaparser.ast.body.RecordDeclaration) member,
+                context
+            );
         } else if (member instanceof com.github.javaparser.ast.body.EnumDeclaration) {
             processEnum(
                 (com.github.javaparser.ast.body.EnumDeclaration) member,

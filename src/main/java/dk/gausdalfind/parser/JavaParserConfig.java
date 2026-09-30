@@ -38,17 +38,17 @@ public final class JavaParserConfig {
         StaticJavaParser.getConfiguration()
             .setAttributeComments(true)
             .setStoreTokens(true)
-            .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_17);
+            .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21);
         
         configured = true;
     }
     
     /**
-     * Returns a new parser with the project configuration: Java 17
+     * Returns a new parser with the project configuration: Java 21
      * language level, comments and tokens stored. Each call gets its own
      * parser instance, which is safe under parallel parsing.
      *
-     * Without the explicit Java 17 language level, files using records,
+     * Without the explicit Java 21 language level, files using records,
      * text blocks, pattern-matching instanceof or switch expressions
      * fail to parse and are dropped from the graph.
      */
@@ -56,7 +56,7 @@ public final class JavaParserConfig {
         return new JavaParser(new ParserConfiguration()
             .setAttributeComments(true)
             .setStoreTokens(true)
-            .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_17));
+            .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21));
     }
     
     /**

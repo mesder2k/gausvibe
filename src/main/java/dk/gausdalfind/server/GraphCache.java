@@ -32,7 +32,7 @@ import java.util.stream.Stream;
 final class GraphCache {
 
     /** Bump when node/edge semantics change so old caches are ignored. */
-    private static final String CACHE_VERSION = "2";
+    private static final String CACHE_VERSION = "3";
 
     private GraphCache() {}
 
