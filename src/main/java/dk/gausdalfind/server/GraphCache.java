@@ -32,7 +32,7 @@ import java.util.stream.Stream;
 final class GraphCache {
 
     /** Bump when node/edge semantics change so old caches are ignored. */
-    private static final String CACHE_VERSION = "3";
+    private static final String CACHE_VERSION = "4";
 
     private GraphCache() {}
 
@@ -62,6 +62,7 @@ final class GraphCache {
                 return null;
             }
             restoreValues(loaded, meta);
+            restoreThrown(loaded, meta);
             System.out.println("Graph cache hit: " + loaded.getNodeCount() + " nodes, "
                 + loaded.getEdgeCount() + " edges loaded in "
                 + (System.currentTimeMillis() - start) + " ms (fingerprint matched)");
@@ -95,6 +96,17 @@ final class GraphCache {
                 values.add(o);
             }
             meta.add("values", values);
+            JsonArray thrown = new JsonArray();
+            for (Indexes.ThrownException t : graph.getIndexes().getAllThrown()) {
+                JsonObject o = new JsonObject();
+                o.addProperty("method", t.methodQualifiedName());
+                o.addProperty("exception", t.exceptionName());
+                o.addProperty("file", t.file() != null ? t.file().toString() : null);
+                o.addProperty("line", t.line());
+                o.addProperty("assertion", t.assertion());
+                thrown.add(o);
+            }
+            meta.add("thrown", thrown);
             Gson gson = new GsonBuilder().disableHtmlEscaping().create();
             Files.writeString(metaFile(projectRoot), gson.toJson(meta));
             System.out.println("Graph cache written: " + graph.getNodeCount() + " nodes, "
@@ -110,6 +122,24 @@ final class GraphCache {
             Files.deleteIfExists(metaFile(projectRoot));
         } catch (IOException e) {
             // best effort
+        }
+    }
+
+    private static void restoreThrown(Graph graph, JsonObject meta) {
+        if (!meta.has("thrown")) {
+            return;
+        }
+        JsonArray thrown = meta.getAsJsonArray("thrown");
+        for (int i = 0; i < thrown.size(); i++) {
+            JsonObject o = thrown.get(i).getAsJsonObject();
+            String file = o.has("file") && !o.get("file").isJsonNull()
+                ? o.get("file").getAsString() : null;
+            graph.getIndexes().indexThrown(new Indexes.ThrownException(
+                o.get("method").getAsString(),
+                o.get("exception").getAsString(),
+                file != null ? Path.of(file) : null,
+                o.get("line").getAsInt(),
+                o.get("assertion").getAsBoolean()));
         }
     }
 

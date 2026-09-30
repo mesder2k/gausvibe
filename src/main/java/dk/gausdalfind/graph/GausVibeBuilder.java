@@ -516,6 +516,7 @@ public class GausVibeBuilder {
             // Process statements using StatementVisitor
             StatementVisitor stmtVisitor = new StatementVisitor(graph, context);
             body.accept(stmtVisitor, context);
+            indexExceptions(body, methodNode, context);
             
             // Restore method context
             context.setCurrentMethod(oldMethod);
@@ -554,6 +555,55 @@ public class GausVibeBuilder {
     }
 
     /**
+     * Captures exception behavior for test coverage linking: exceptions a
+     * method throws, and exceptions a test method asserts via
+     * assertThrows/expectThrows/expectException. Tests that verify
+     * behavior through observable exceptions (not direct calls) link to
+     * production code this way.
+     */
+    private void indexExceptions(com.github.javaparser.ast.stmt.BlockStmt body, MethodNode methodNode,
+                                 VisitorContext context) {
+        int line = methodNode.getStartPosition() != null ? methodNode.getStartPosition().line() : 0;
+        for (com.github.javaparser.ast.stmt.ThrowStmt t : body.findAll(com.github.javaparser.ast.stmt.ThrowStmt.class)) {
+            String name = null;
+            com.github.javaparser.ast.expr.Expression e = t.getExpression();
+            if (e instanceof com.github.javaparser.ast.expr.ObjectCreationExpr) {
+                name = ((com.github.javaparser.ast.expr.ObjectCreationExpr) e).getType().getName().toString();
+            }
+            if (name != null) {
+                int tLine = t.getBegin().map(p -> p.line).orElse(line);
+                graph.getIndexes().indexThrown(new Indexes.ThrownException(
+                    methodNode.getQualifiedName(), simpleName(name),
+                    context.getCurrentFile(), tLine, false));
+            }
+        }
+        for (com.github.javaparser.ast.expr.MethodCallExpr c
+                : body.findAll(com.github.javaparser.ast.expr.MethodCallExpr.class)) {
+            String callName = c.getNameAsString();
+            if (!"assertThrows".equals(callName) && !"expectThrows".equals(callName)
+                && !"expectException".equals(callName)) {
+                continue;
+            }
+            if (c.getArguments().isEmpty()) {
+                continue;
+            }
+            String arg = c.getArgument(0).toString();
+            if (arg.endsWith(".class")) {
+                int cLine = c.getBegin().map(p -> p.line).orElse(line);
+                graph.getIndexes().indexThrown(new Indexes.ThrownException(
+                    methodNode.getQualifiedName(), simpleName(arg.substring(0, arg.length() - 6)),
+                    context.getCurrentFile(), cLine, true));
+            }
+        }
+    }
+
+    private static String simpleName(String typeName) {
+        String n = typeName.trim();
+        int dot = n.lastIndexOf('.');
+        return dot >= 0 ? n.substring(dot + 1) : n;
+    }
+
+    /**
      * Processes a constructor body, mirroring processMethodBody.
      */
     private void processConstructorBody(
@@ -585,6 +635,7 @@ public class GausVibeBuilder {
         // Process statements using StatementVisitor
         StatementVisitor stmtVisitor = new StatementVisitor(graph, context);
         ctorDecl.getBody().accept(stmtVisitor, context);
+        indexExceptions(ctorDecl.getBody(), ctorNode, context);
         
         // Restore method context
         context.setCurrentMethod(oldMethod);

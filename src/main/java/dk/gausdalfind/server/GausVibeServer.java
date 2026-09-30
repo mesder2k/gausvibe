@@ -1819,36 +1819,78 @@ public class GausVibeServer {
             for (MethodNode m : engine.getMethods(prodClass)) {
                 prodMethodIds.add(m.getId());
             }
-            
+
+            // Exception names thrown by any production method: tests that
+            // assert them verify behavior without calling the method directly
+            Set<String> prodThrown = new HashSet<>();
+            for (MethodNode m : engine.getMethods(prodClass)) {
+                for (Indexes.ThrownException t : engine.getIndexes().getThrownByMethod(m.getQualifiedName())) {
+                    if (!t.assertion()) {
+                        prodThrown.add(t.exceptionName());
+                    }
+                }
+            }
+
             // Map test-class fqn -> test method -> called prod methods
             Map<String, Map<String, Object>> coveringTests = new LinkedHashMap<>();
-            
+
             for (ClassNode candidate : engine.getAllClasses()) {
                 if (!isTestClass(candidate) || candidate.getQualifiedName().equals(prodFqn)) {
                     continue;
                 }
                 Map<String, List<String>> coveringMethods = new LinkedHashMap<>();
-                
+                boolean anyDirect = false;
+                boolean anyIndirect = false;
+                boolean anyExceptionLink = false;
+
                 for (MethodNode testMethod : engine.getMethods(candidate)) {
-                    List<String> calledProd = new ArrayList<>();
-                    for (MethodNode callee : engine.getCallees(testMethod)) {
+                    java.util.Set<String> calledProd = new java.util.LinkedHashSet<>();
+                    List<MethodNode> hop1 = engine.getCallees(testMethod);
+                    int hop1Considered = 0;
+                    for (MethodNode callee : hop1) {
                         if (prodMethodIds.contains(callee.getId())) {
                             calledProd.add(callee.getSignature());
+                            anyDirect = true;
+                        } else if (hop1Considered < 50) {
+                            // two-hop: the test calls a helper that calls the prod class
+                            hop1Considered++;
+                            for (MethodNode hop2 : engine.getCallees(callee)) {
+                                if (prodMethodIds.contains(hop2.getId())) {
+                                    calledProd.add("[2hop] " + hop2.getSignature());
+                                    anyIndirect = true;
+                                }
+                            }
+                        }
+                    }
+                    for (Indexes.ThrownException t
+                            : engine.getIndexes().getThrownByMethod(testMethod.getQualifiedName())) {
+                        if (t.assertion() && prodThrown.contains(t.exceptionName())) {
+                            calledProd.add("[throws " + t.exceptionName() + "]");
+                            anyExceptionLink = true;
                         }
                     }
                     if (!calledProd.isEmpty()) {
-                        coveringMethods.put(testMethod.getSignature(), calledProd);
+                        coveringMethods.put(testMethod.getSignature(), new ArrayList<>(calledProd));
                     }
                 }
-                
+
                 boolean nameMatch = candidate.getName().toLowerCase()
                     .contains(prodName.toLowerCase());
                 if (!coveringMethods.isEmpty() || nameMatch) {
                     Map<String, Object> testEntry = new LinkedHashMap<>();
                     testEntry.put("test_class", candidate.getQualifiedName());
                     testEntry.put("file", candidate.getFile());
-                    testEntry.put("coverage", nameMatch && coveringMethods.isEmpty()
-                        ? "name-convention" : "call-graph");
+                    String coverage;
+                    if (anyDirect) {
+                        coverage = "call-graph";
+                    } else if (anyIndirect) {
+                        coverage = "call-graph-2hop";
+                    } else if (anyExceptionLink) {
+                        coverage = "exception-link";
+                    } else {
+                        coverage = "name-convention";
+                    }
+                    testEntry.put("coverage", coverage);
                     if (!coveringMethods.isEmpty()) {
                         testEntry.put("test_methods", coveringMethods);
                     }

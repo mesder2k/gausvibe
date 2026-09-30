@@ -123,6 +123,41 @@ public class Indexes {
         return Collections.unmodifiableList(new ArrayList<>(literalValues));
     }
 
+    // ==================== Exception Index ====================
+
+    /**
+     * An exception type a method throws, or (assertion=true) an exception
+     * type a test method asserts via assertThrows/expectThrows/expectException.
+     * Links tests to production code through observable behavior.
+     */
+    public record ThrownException(String methodQualifiedName, String exceptionName,
+                                  Path file, int line, boolean assertion) {}
+
+    /** Thrown/asserted exceptions, keyed by method qualified name. */
+    private final Map<String, List<ThrownException>> thrownByMethod = new ConcurrentHashMap<>();
+
+    public void indexThrown(ThrownException e) {
+        if (e == null || e.methodQualifiedName() == null || e.exceptionName() == null) {
+            return;
+        }
+        thrownByMethod.computeIfAbsent(e.methodQualifiedName(), k -> Collections.synchronizedList(new ArrayList<>())).add(e);
+    }
+
+    /** Exceptions thrown (assertion=false) or asserted (assertion=true) by a method. */
+    public List<ThrownException> getThrownByMethod(String methodQualifiedName) {
+        return Collections.unmodifiableList(
+            thrownByMethod.getOrDefault(methodQualifiedName, Collections.emptyList()));
+    }
+
+    /** All thrown/asserted exceptions (for cache serialization). */
+    public List<ThrownException> getAllThrown() {
+        List<ThrownException> all = new ArrayList<>();
+        for (List<ThrownException> list : thrownByMethod.values()) {
+            all.addAll(list);
+        }
+        return Collections.unmodifiableList(all);
+    }
+
     /**
      * Indexes a node for fast lookup.
      */
@@ -630,6 +665,7 @@ public class Indexes {
         edgesFrom.clear();
         edgesTo.clear();
         literalValues.clear();
+        thrownByMethod.clear();
         
         if (callGraphIndex != null) {
             callGraphIndex.clear();
