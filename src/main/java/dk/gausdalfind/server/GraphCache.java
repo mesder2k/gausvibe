@@ -32,7 +32,7 @@ import java.util.stream.Stream;
 final class GraphCache {
 
     /** Bump when node/edge semantics change so old caches are ignored. */
-    private static final String CACHE_VERSION = "4";
+    private static final String CACHE_VERSION = "5";
 
     private GraphCache() {}
 
@@ -63,6 +63,7 @@ final class GraphCache {
             }
             restoreValues(loaded, meta);
             restoreThrown(loaded, meta);
+            restoreFieldUsages(loaded, meta);
             System.out.println("Graph cache hit: " + loaded.getNodeCount() + " nodes, "
                 + loaded.getEdgeCount() + " edges loaded in "
                 + (System.currentTimeMillis() - start) + " ms (fingerprint matched)");
@@ -107,6 +108,16 @@ final class GraphCache {
                 thrown.add(o);
             }
             meta.add("thrown", thrown);
+            JsonArray usages = new JsonArray();
+            for (Indexes.FieldUsage u : graph.getIndexes().getAllFieldUsages()) {
+                JsonObject o = new JsonObject();
+                o.addProperty("field", u.fieldQualifiedName());
+                o.addProperty("method", u.methodQualifiedName());
+                o.addProperty("file", u.file() != null ? u.file().toString() : null);
+                o.addProperty("line", u.line());
+                usages.add(o);
+            }
+            meta.add("fieldUsages", usages);
             Gson gson = new GsonBuilder().disableHtmlEscaping().create();
             Files.writeString(metaFile(projectRoot), gson.toJson(meta));
             System.out.println("Graph cache written: " + graph.getNodeCount() + " nodes, "
@@ -122,6 +133,23 @@ final class GraphCache {
             Files.deleteIfExists(metaFile(projectRoot));
         } catch (IOException e) {
             // best effort
+        }
+    }
+
+    private static void restoreFieldUsages(Graph graph, JsonObject meta) {
+        if (!meta.has("fieldUsages")) {
+            return;
+        }
+        JsonArray usages = meta.getAsJsonArray("fieldUsages");
+        for (int i = 0; i < usages.size(); i++) {
+            JsonObject o = usages.get(i).getAsJsonObject();
+            String file = o.has("file") && !o.get("file").isJsonNull()
+                ? o.get("file").getAsString() : null;
+            graph.getIndexes().indexFieldUsage(new Indexes.FieldUsage(
+                o.get("field").getAsString(),
+                o.get("method").getAsString(),
+                file != null ? Path.of(file) : null,
+                o.get("line").getAsInt()));
         }
     }
 

@@ -942,7 +942,13 @@ public class GausVibeServer {
                 return classQuery(question, resolution, "subclasses",
                     "No class name found in the question");
             }
-            if (lower.contains("call")) {
+            if (lower.contains("call") || lower.contains("use") || lower.contains("uses")
+                || lower.contains("read")) {
+                // a named field? -> field-usage answer before method callers
+                Map<String, Object> fieldResult = fieldUsageQuery(question, candidates);
+                if (fieldResult != null) {
+                    return fieldResult;
+                }
                 return callersQuery(question, methodName);
             }
             // flow/path questions: only handled when a path actually resolves,
@@ -1419,6 +1425,53 @@ public class GausVibeServer {
                 return null;
             }
             return matched(question, "value-location", sb.toString(), total);
+        }
+
+        /**
+         * Answers "who uses <field>" by resolving a candidate token to a
+         * field and listing the methods that reference it. Returns null
+         * when no candidate names a known field.
+         */
+        private Map<String, Object> fieldUsageQuery(String question, List<String> candidates) {
+            for (String c : candidates) {
+                List<FieldNode> fields = queryEngine.getIndexes().getFieldsByName(c);
+                if (fields.isEmpty()) {
+                    continue;
+                }
+                StringBuilder sb = new StringBuilder();
+                int total = 0;
+                for (FieldNode f : fields) {
+                    List<Indexes.FieldUsage> usages =
+                        queryEngine.getIndexes().getFieldUsages(f.getQualifiedName());
+                    if (usages.isEmpty()) {
+                        continue;
+                    }
+                    sb.append("Usages of ").append(f.getQualifiedName())
+                      .append(" (").append(usages.size()).append("):\n");
+                    int shown = 0;
+                    for (Indexes.FieldUsage u : usages) {
+                        if (shown >= 50) {
+                            sb.append("  ... and ").append(usages.size() - shown).append(" more\n");
+                            break;
+                        }
+                        sb.append("  - ").append(u.methodQualifiedName());
+                        if (u.file() != null) {
+                            sb.append("  [").append(u.file());
+                            if (u.line() > 0) {
+                                sb.append(":").append(u.line());
+                            }
+                            sb.append("]");
+                        }
+                        sb.append("\n");
+                        shown++;
+                        total++;
+                    }
+                }
+                if (total > 0) {
+                    return matched(question, "field-usage", sb.toString(), total);
+                }
+            }
+            return null;
         }
 
         private Map<String, Object> callersQuery(String question, String methodName) {

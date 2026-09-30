@@ -290,7 +290,7 @@ public class GausVibeMcpServer {
             "Answer a structural question about a Java symbol you can NAME exactly. "
                 + "Supported patterns ONLY: 'where is <X> defined' (class or method location), "
                 + "'what methods does <X> have', 'what fields does <X> have', "
-                + "'what implements <I>' / 'what subclasses <C>', 'who calls <M>' (method), "
+                + "'what implements <I>' / 'what subclasses <C>', 'who calls <M>' (method), 'who uses <F>' (field), "
                 + "'which tests verify <C>' (class), and 'where is <literal> defined' for "
                 + "numbers or quoted string literals (value index, e.g. 'where is 9200 "
                 + "defined'). <X> must be an exact class or method "

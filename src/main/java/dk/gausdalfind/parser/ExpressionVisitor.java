@@ -113,6 +113,91 @@ public class ExpressionVisitor extends VoidVisitorAdapter<VisitorContext> {
     }
 
     /**
+     * Records a field usage when a simple name resolves to a field symbol,
+     * powering "who uses <field>" queries.
+     */
+    @Override
+    public void visit(com.github.javaparser.ast.expr.NameExpr nameExpr, VisitorContext context) {
+        super.visit(nameExpr, context);
+        recordFieldUsageIfField(nameExpr.getName().toString(), context,
+            nameExpr.getBegin().map(p -> p.line).orElse(0));
+    }
+
+    /**
+     * Records field usages through this.field and ClassName.field access.
+     */
+    @Override
+    public void visit(com.github.javaparser.ast.expr.FieldAccessExpr fieldAccess, VisitorContext context) {
+        super.visit(fieldAccess, context);
+        int line = fieldAccess.getBegin().map(p -> p.line).orElse(0);
+        if (fieldAccess.getScope() instanceof com.github.javaparser.ast.expr.ThisExpr) {
+            recordFieldUsageIfField(fieldAccess.getName().toString(), context, line);
+            return;
+        }
+        // ClassName.fieldName: static access; the scope class may be a
+        // local symbol, same-package, or imported
+        if (fieldAccess.getScope() instanceof com.github.javaparser.ast.expr.NameExpr) {
+            String scopeName = ((com.github.javaparser.ast.expr.NameExpr) fieldAccess.getScope())
+                .getName().toString();
+            String clsFqn = resolveClassName(scopeName, context);
+            if (clsFqn != null) {
+                String fieldName = fieldAccess.getName().toString();
+                for (dk.gausdalfind.model.declaration.FieldNode f
+                        : graph.getIndexes().getFieldsByName(fieldName)) {
+                    if (clsFqn.equals(f.getClassName())) {
+                        indexFieldUsage(f, context, line);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Resolves a simple name to an indexed class fqn: local symbol first,
+     * then same-package, then single-type imports. Returns null when the
+     * name does not resolve to a known class.
+     */
+    private String resolveClassName(String simpleName, VisitorContext context) {
+        Node symbol = lookupSymbol(simpleName, context);
+        if (symbol instanceof dk.gausdalfind.model.declaration.ClassNode) {
+            return ((dk.gausdalfind.model.declaration.ClassNode) symbol).getQualifiedName();
+        }
+        String pkg = context.getCurrentPackage();
+        String byPackage = (pkg != null && !pkg.isBlank()) ? pkg + "." + simpleName : simpleName;
+        if (graph.getIndexes().getClassByQualifiedName(byPackage).isPresent()) {
+            return byPackage;
+        }
+        for (String imp : context.getImports()) {
+            if (imp.endsWith("." + simpleName)
+                && graph.getIndexes().getClassByQualifiedName(imp).isPresent()) {
+                return imp;
+            }
+        }
+        return null;
+    }
+
+    private void recordFieldUsageIfField(String name, VisitorContext context, int line) {
+        Node symbol = lookupSymbol(name, context);
+        if (symbol instanceof dk.gausdalfind.model.declaration.FieldNode) {
+            indexFieldUsage((dk.gausdalfind.model.declaration.FieldNode) symbol, context, line);
+        }
+    }
+
+    private void indexFieldUsage(dk.gausdalfind.model.declaration.FieldNode field,
+                                 VisitorContext context, int line) {
+        String methodQ = context.getCurrentMethod();
+        if (methodQ == null || methodQ.isBlank()) {
+            return; // field reference outside any method body (initializer)
+        }
+        int hash = methodQ.indexOf('#');
+        if (hash >= 0) {
+            methodQ = methodQ.substring(0, hash);
+        }
+        graph.getIndexes().indexFieldUsage(new dk.gausdalfind.model.Indexes.FieldUsage(
+            field.getQualifiedName(), methodQ, context.getCurrentFile(), line));
+    }
+
+    /**
      * Best-effort resolution of the receiver's declared type name.
      * Returns null when the receiver cannot be resolved statically.
      */

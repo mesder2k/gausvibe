@@ -158,6 +158,46 @@ public class Indexes {
         return Collections.unmodifiableList(all);
     }
 
+    // ==================== Field Usage Index ====================
+
+    /**
+     * A method referencing a field: links "who uses SETTING_HTTP_PORT"
+     * style questions to the referencing methods.
+     */
+    public record FieldUsage(String fieldQualifiedName, String methodQualifiedName,
+                             Path file, int line) {}
+
+    private final List<FieldUsage> fieldUsages = new ArrayList<>();
+
+    public void indexFieldUsage(FieldUsage usage) {
+        if (usage == null || usage.fieldQualifiedName() == null || usage.methodQualifiedName() == null) {
+            return;
+        }
+        for (FieldUsage existing : fieldUsages) {
+            if (existing.fieldQualifiedName().equals(usage.fieldQualifiedName())
+                && existing.methodQualifiedName().equals(usage.methodQualifiedName())) {
+                return;
+            }
+        }
+        fieldUsages.add(usage);
+    }
+
+    /** Methods that reference the given field (by field qualified name). */
+    public List<FieldUsage> getFieldUsages(String fieldQualifiedName) {
+        List<FieldUsage> matches = new ArrayList<>();
+        for (FieldUsage u : fieldUsages) {
+            if (u.fieldQualifiedName().equals(fieldQualifiedName)) {
+                matches.add(u);
+            }
+        }
+        return Collections.unmodifiableList(matches);
+    }
+
+    /** All field usages (for cache serialization). */
+    public List<FieldUsage> getAllFieldUsages() {
+        return Collections.unmodifiableList(new ArrayList<>(fieldUsages));
+    }
+
     /**
      * Indexes a node for fast lookup.
      */
@@ -666,6 +706,7 @@ public class Indexes {
         edgesTo.clear();
         literalValues.clear();
         thrownByMethod.clear();
+        fieldUsages.clear();
         
         if (callGraphIndex != null) {
             callGraphIndex.clear();
