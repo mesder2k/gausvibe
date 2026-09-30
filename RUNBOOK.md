@@ -60,7 +60,28 @@ The gausvibe plugin (`~/.vibe/plugins/gausvibe/`) ships `mcp.json` with the
 `gausvibe_class_members`, `gausvibe_classes`, `gausvibe_packages`,
 `gausvibe_edited`, `gausvibe_feedback`, `gausvibe_changes`,
 `gausvibe_stats` - but ONLY in sessions started AFTER the plugin files
-existed. Mid-session `/reload-plugins` is unreliable (see Vibe bugs).
+existed AND after Vibe has discovered them (see the descriptor-cache bug
+below). Mid-session `/reload-plugins` is unreliable (see Vibe bugs).
+
+There are TWO pinning layers, and both must be current for the tools to
+appear. A fresh session re-pins the plugin FILES (mcp.json etc.) from
+disk, but resolves the MCP TOOL LIST from a persistent descriptor cache
+at `~/.vibe/logs/mcp-descriptors/{plugins,unified}/`, keyed by a server
+fingerprint derived from the server CONFIG - not from the binary the
+classpath points at. Recompiling `target/classes` does not invalidate
+the cache, so fresh sessions keep serving the OLD tool list. This broke
+round 3's precondition 2 on 2026-09-29: the 12-tool binary was compiled
+at 18:42, but every session after the 18:34 descriptor discovery was
+still served the 7-tool list (verified: the live binary answered
+tools/list with 12 via `etl/repro_mcp_client.py`; the session's pinned
+`core_input` checkpoint had 7). Fix when the tool list changes while
+mcp.json is unchanged:
+
+```bash
+rm ~/.vibe/logs/mcp-descriptors/plugins/*.json
+rm ~/.vibe/logs/mcp-descriptors/unified/*.json
+# then start a FRESH session; absence forces a new tools/list discovery
+```
 
 `ask` is restricted to named-symbol structural questions (its description
 enumerates the supported patterns); listing, enumeration, and name lookup
@@ -85,6 +106,11 @@ python3 etl/validate_mcp.py   # validates against Vibe's own models
   cannot rebind subagent agent types") - unimplemented `child Runtime
   access` in mistralai_vibe_local_harness. Fix: start a fresh session
   (`/new`), which pins plugins at startup.
+- MCP tool descriptors are cached per server-config fingerprint under
+  `~/.vibe/logs/mcp-descriptors/`; a fresh session re-pins plugin files
+  but reuses the cached tool list. Recompiling the server does not
+  refresh it - delete the cache files (see "MCP tools in Vibe") and
+  start a fresh session.
 - `agent.spawn` can return success without registering when the child
   limit is hit. Always close finished subagents; spawn sequentially and
   check `agent.list` if tools.agent.wait says "Unknown subagent".
