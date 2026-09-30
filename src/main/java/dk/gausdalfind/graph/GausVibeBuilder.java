@@ -364,6 +364,7 @@ public class GausVibeBuilder {
             String cause = e.getCause() != null ? " (cause: " + e.getCause() + ")" : "";
             System.err.println("Error parsing file " + file + ": " + e.getClass().getSimpleName()
                 + ": " + e.getMessage() + cause);
+            e.printStackTrace();
             filesFailed++;
         }
     }

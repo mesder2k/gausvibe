@@ -89,7 +89,8 @@ public class Indexes {
     // ==================== Value Index ====================
 
     /** Literal values captured from field initializers. */
-    private final List<ValueOccurrence> literalValues = new ArrayList<>();
+    private final List<ValueOccurrence> literalValues =
+        Collections.synchronizedList(new ArrayList<>());
 
     /** Indexes a literal value captured from a field initializer. */
     public void indexValue(ValueOccurrence occurrence) {
@@ -107,11 +108,13 @@ public class Indexes {
             return Collections.emptyList();
         }
         List<ValueOccurrence> matches = new ArrayList<>();
-        for (ValueOccurrence v : literalValues) {
-            if (v.value().contains(text)) {
-                matches.add(v);
-                if (matches.size() >= limit) {
-                    break;
+        synchronized (literalValues) {
+            for (ValueOccurrence v : literalValues) {
+                if (v.value().contains(text)) {
+                    matches.add(v);
+                    if (matches.size() >= limit) {
+                        break;
+                    }
                 }
             }
         }
@@ -120,7 +123,9 @@ public class Indexes {
 
     /** Returns all indexed literal values (for cache serialization). */
     public List<ValueOccurrence> getAllValues() {
-        return Collections.unmodifiableList(new ArrayList<>(literalValues));
+        synchronized (literalValues) {
+            return Collections.unmodifiableList(new ArrayList<>(literalValues));
+        }
     }
 
     // ==================== Exception Index ====================
@@ -167,27 +172,33 @@ public class Indexes {
     public record FieldUsage(String fieldQualifiedName, String methodQualifiedName,
                              Path file, int line) {}
 
-    private final List<FieldUsage> fieldUsages = new ArrayList<>();
+    private final List<FieldUsage> fieldUsages =
+        Collections.synchronizedList(new ArrayList<>());
 
     public void indexFieldUsage(FieldUsage usage) {
         if (usage == null || usage.fieldQualifiedName() == null || usage.methodQualifiedName() == null) {
             return;
         }
-        for (FieldUsage existing : fieldUsages) {
-            if (existing.fieldQualifiedName().equals(usage.fieldQualifiedName())
-                && existing.methodQualifiedName().equals(usage.methodQualifiedName())) {
-                return;
+        // Dedup scan + add must be atomic: parallel parse workers race here
+        synchronized (fieldUsages) {
+            for (FieldUsage existing : fieldUsages) {
+                if (existing.fieldQualifiedName().equals(usage.fieldQualifiedName())
+                    && existing.methodQualifiedName().equals(usage.methodQualifiedName())) {
+                    return;
+                }
             }
+            fieldUsages.add(usage);
         }
-        fieldUsages.add(usage);
     }
 
     /** Methods that reference the given field (by field qualified name). */
     public List<FieldUsage> getFieldUsages(String fieldQualifiedName) {
         List<FieldUsage> matches = new ArrayList<>();
-        for (FieldUsage u : fieldUsages) {
-            if (u.fieldQualifiedName().equals(fieldQualifiedName)) {
-                matches.add(u);
+        synchronized (fieldUsages) {
+            for (FieldUsage u : fieldUsages) {
+                if (u.fieldQualifiedName().equals(fieldQualifiedName)) {
+                    matches.add(u);
+                }
             }
         }
         return Collections.unmodifiableList(matches);
@@ -195,7 +206,9 @@ public class Indexes {
 
     /** All field usages (for cache serialization). */
     public List<FieldUsage> getAllFieldUsages() {
-        return Collections.unmodifiableList(new ArrayList<>(fieldUsages));
+        synchronized (fieldUsages) {
+            return Collections.unmodifiableList(new ArrayList<>(fieldUsages));
+        }
     }
 
     /**
