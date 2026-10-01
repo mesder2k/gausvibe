@@ -1,0 +1,44 @@
+{
+  "task_id": "google__gson-1391",
+  "repo": "google/gson",
+  "base_commit": "3f4ac29f9112799a7374a99b18acabd0232ff075",
+  "source": "SWE-bench-java-verified (HF Daoguang/Multi-SWE-bench, swe-bench-java-verified.json)",
+  "issue_summary": "Recursive TypeVariable resolution fails when a type var is referenced multiple times; enums deserialize as Strings -> ClassCastException.",
+  "gold_patch_file": "gson/src/main/java/com/google/gson/internal/$Gson$Types.java",
+  "spot_check": "Q2 and Q4 grep-verified against base-commit clone; round-5 bakeoff run corrected Q2 ground truth (getSupertype is a third caller; see bakeoff_pilot_results)",
+  "questions": [
+    {
+      "q": "Where is gson's recursive TypeVariable resolution implemented - the code that resolves a TypeVariable against its declaring context while guarding against infinite recursion?",
+      "route_hint": "ask",
+      "ground_truth_strict": "gson/src/main/java/com/google/gson/internal/$Gson$Types.java - public resolve(Type, Class, Type) at L336 delegating to private resolve(Type, Class, Type, Collection<TypeVariable>) at L340-341; recursion guard is visitedTypeVariables (contains at L346, add at L350); per-variable work in resolveTypeVariable at L419",
+      "ground_truth_lenient": "$Gson$Types + resolve + visitedTypeVariables"
+    },
+    {
+      "q": "Who calls $Gson$Types.resolve in the main source, and from which method?",
+      "route_hint": "callpath",
+      "ground_truth_strict": "CORRECTED in round 5 (original said exactly 2 call sites - wrong): three external callers - ReflectiveTypeAdapterFactory.getBoundFields (call sites at ReflectiveTypeAdapterFactory.java:160 for field generic types and :176 for the generic superclass) AND $Gson$Types.getSupertype (internal same-class call at $Gson$Types.java:283); plus self-recursion from the 3-arg overload at :337 and the six internal recursive calls at :360-406. Naive 'grep Types.resolve(' misses the same-class call because it is written as bare 'resolve('.",
+      "ground_truth_lenient": "ReflectiveTypeAdapterFactory (+ $Gson$Types.getSupertype if graph-based)"
+    },
+    {
+      "q": "Where is visitedTypeVariables declared and which methods read and write it?",
+      "route_hint": "field-usage",
+      "ground_truth_strict": "Not a field: a parameter of the private $Gson$Types.resolve in $Gson$Types.java declared at L341, seeded by the public overload at :337 (new HashSet). Only the private resolve touches it: contains-read at :346, add-write at :350, threaded through the recursive calls at :360, :368, :376, :381, :401, :406. No other class or method uses it.",
+      "ground_truth_lenient": "$Gson$Types.resolve / visitedTypeVariables in $Gson$Types.java",
+      "round5_note": "Both gv arms got matched=null (parameter, not a field - honest null); correct answer recovered via marked grep fallback"
+    },
+    {
+      "q": "Which existing tests exercise type-variable resolution, i.e. would likely catch a regression in $Gson$Types.resolve?",
+      "route_hint": "tests",
+      "ground_truth_strict": "gson/src/test/java/com/google/gson/internal/bind/RecursiveTypesResolveTest.java (testRecursiveTypeVariablesResolve1, testRecursiveTypeVariablesResolve12; javadoc links $Gson$Types#resolve) and gson/src/test/java/com/google/gson/functional/TypeVariableTest.java",
+      "ground_truth_lenient": "either of RecursiveTypesResolveTest, TypeVariableTest",
+      "round5_note": "Arms also surfaced verifiable adjacent tests (ParameterizedTypesTest, MapAsArrayTypeAdapterTest, GsonTypesTest - which has NO direct resolve tests); gv tests payload reported 34 covering classes (expensive, matches savings-list item)"
+    },
+    {
+      "q": "Starting from Gson.fromJson(String, Class), which component binds a plain POJO's fields and where does it decide each field's generic type?",
+      "route_hint": "callpath",
+      "ground_truth_strict": "Gson.fromJson(String, Class) at Gson.java:812 -> fromJson(String, Type) at Gson.java:836 -> getAdapter(TypeToken) -> ReflectiveTypeAdapterFactory.create (ReflectiveTypeAdapterFactory.java:94) -> getBoundFields (declared :144); the generic-type decision is the $Gson$Types.resolve call INSIDE getBoundFields at ReflectiveTypeAdapterFactory.java:160",
+      "ground_truth_lenient": "ReflectiveTypeAdapterFactory + Gson.fromJson",
+      "round5_note": "gv arms cited the method-start line (144) instead of the call line (160) - graph reports method-start lines; strict line-level scoring penalized both gv arms here"
+    }
+  ]
+}
