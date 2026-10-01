@@ -1,0 +1,1046 @@
+{
+ "r5-gv-gson-1": {
+  "llm_calls": 9,
+  "input": 237412,
+  "cached_input": 210688,
+  "uncached_input": 26724,
+  "output": 4101,
+  "series": [
+   {
+    "call": 1,
+    "input": 11162,
+    "cached": 11008,
+    "uncached": 154,
+    "output": 85,
+    "added": 11162
+   },
+   {
+    "call": 2,
+    "input": 11744,
+    "cached": 11136,
+    "uncached": 608,
+    "output": 302,
+    "added": 582
+   },
+   {
+    "call": 3,
+    "input": 22165,
+    "cached": 11968,
+    "uncached": 10197,
+    "output": 512,
+    "added": 10421
+   },
+   {
+    "call": 4,
+    "input": 22902,
+    "cached": 22592,
+    "uncached": 310,
+    "output": 135,
+    "added": 737
+   },
+   {
+    "call": 5,
+    "input": 23628,
+    "cached": 22912,
+    "uncached": 716,
+    "output": 240,
+    "added": 726
+   },
+   {
+    "call": 6,
+    "input": 29742,
+    "cached": 23744,
+    "uncached": 5998,
+    "output": 784,
+    "added": 6114
+   },
+   {
+    "call": 7,
+    "input": 38078,
+    "cached": 30400,
+    "uncached": 7678,
+    "output": 217,
+    "added": 8336
+   },
+   {
+    "call": 8,
+    "input": 38639,
+    "cached": 38208,
+    "uncached": 431,
+    "output": 151,
+    "added": 561
+   },
+   {
+    "call": 9,
+    "input": 39352,
+    "cached": 38720,
+    "uncached": 632,
+    "output": 1675,
+    "added": 713
+   }
+  ],
+  "base_first_call": 11162,
+  "result_bytes_by_tool": {
+   "run_typescript": 114647,
+   "skill": 4352,
+   "bash": 2263
+  },
+  "call_args_bytes_by_tool": {
+   "run_typescript": 10108,
+   "skill": 224,
+   "bash": 482
+  },
+  "events": [
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 542
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 22647
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 724
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 41027
+   },
+   {
+    "kind": "call",
+    "tool": "skill",
+    "bytes": 112
+   },
+   {
+    "kind": "result",
+    "tool": "skill",
+    "bytes": 2176
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 627
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 534
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 732
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 300
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 730
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 372
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 349
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 316
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 361
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 246
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 363
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 1977
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 770
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 40960
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 718
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 851
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 498
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 2220
+   },
+   {
+    "kind": "call",
+    "tool": "skill",
+    "bytes": 112
+   },
+   {
+    "kind": "result",
+    "tool": "skill",
+    "bytes": 2176
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 627
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 534
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 732
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 300
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 730
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 372
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 349
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 316
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 361
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 246
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 895
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 1429
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 482
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 2263
+   }
+  ]
+ },
+ "r5-gv-gson-2": {
+  "llm_calls": 5,
+  "input": 113112,
+  "cached_input": 100736,
+  "uncached_input": 12376,
+  "output": 5867,
+  "series": [
+   {
+    "call": 1,
+    "input": 14122,
+    "cached": 13440,
+    "uncached": 682,
+    "output": 453,
+    "added": 14122
+   },
+   {
+    "call": 2,
+    "input": 21042,
+    "cached": 14464,
+    "uncached": 6578,
+    "output": 1942,
+    "added": 6920
+   },
+   {
+    "call": 3,
+    "input": 23518,
+    "cached": 21824,
+    "uncached": 1694,
+    "output": 619,
+    "added": 2476
+   },
+   {
+    "call": 4,
+    "input": 26543,
+    "cached": 24064,
+    "uncached": 2479,
+    "output": 519,
+    "added": 3025
+   },
+   {
+    "call": 5,
+    "input": 27887,
+    "cached": 26944,
+    "uncached": 943,
+    "output": 2334,
+    "added": 1344
+   }
+  ],
+  "base_first_call": 14122,
+  "result_bytes_by_tool": {
+   "bash": 1470,
+   "run_typescript": 49505,
+   "skill": 4352,
+   "search_tool_functions": 17332
+  },
+  "call_args_bytes_by_tool": {
+   "bash": 792,
+   "run_typescript": 13997,
+   "skill": 224,
+   "search_tool_functions": 1316
+  },
+  "events": [
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 404
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 1198
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 386
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 12319
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 388
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 1041
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 1084
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 2756
+   },
+   {
+    "kind": "call",
+    "tool": "skill",
+    "bytes": 112
+   },
+   {
+    "kind": "call",
+    "tool": "search_tool_functions",
+    "bytes": 186
+   },
+   {
+    "kind": "result",
+    "tool": "skill",
+    "bytes": 2176
+   },
+   {
+    "kind": "result",
+    "tool": "search_tool_functions",
+    "bytes": 474
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 1190
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 868
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 961
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 55
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 1257
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 300
+   },
+   {
+    "kind": "call",
+    "tool": "search_tool_functions",
+    "bytes": 472
+   },
+   {
+    "kind": "result",
+    "tool": "search_tool_functions",
+    "bytes": 8192
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 289
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 99
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 678
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 2245
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 1498
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 24918
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 1510
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 2378
+   },
+   {
+    "kind": "call",
+    "tool": "skill",
+    "bytes": 112
+   },
+   {
+    "kind": "call",
+    "tool": "search_tool_functions",
+    "bytes": 186
+   },
+   {
+    "kind": "result",
+    "tool": "skill",
+    "bytes": 2176
+   },
+   {
+    "kind": "result",
+    "tool": "search_tool_functions",
+    "bytes": 474
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 1190
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 868
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 961
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 55
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 1257
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 300
+   },
+   {
+    "kind": "call",
+    "tool": "search_tool_functions",
+    "bytes": 472
+   },
+   {
+    "kind": "result",
+    "tool": "search_tool_functions",
+    "bytes": 8192
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 289
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 99
+   },
+   {
+    "kind": "call",
+    "tool": "run_typescript",
+    "bytes": 678
+   },
+   {
+    "kind": "result",
+    "tool": "run_typescript",
+    "bytes": 2245
+   }
+  ]
+ },
+ "r5-grep-gson-1": {
+  "llm_calls": 2,
+  "input": 30936,
+  "cached_input": 28992,
+  "uncached_input": 1944,
+  "output": 1056,
+  "series": [
+   {
+    "call": 1,
+    "input": 14908,
+    "cached": 13888,
+    "uncached": 1020,
+    "output": 275,
+    "added": 14908
+   },
+   {
+    "call": 2,
+    "input": 16028,
+    "cached": 15104,
+    "uncached": 924,
+    "output": 781,
+    "added": 1120
+   }
+  ],
+  "base_first_call": 14908,
+  "result_bytes_by_tool": {
+   "bash": 40753
+  },
+  "call_args_bytes_by_tool": {
+   "bash": 12816
+  },
+  "events": [
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 340
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 328
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 250
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 244
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 318
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 328
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 1616
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 1060
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 370
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 358
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 4210
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 580
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 674
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 730
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 2654
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 1812
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 906
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 510
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 908
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 1420
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 438
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 888
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 398
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 3359
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 624
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 3547
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 340
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 328
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 250
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 244
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 318
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 328
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 1616
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 1060
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 370
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 358
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 4210
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 580
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 674
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 730
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 2654
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 1812
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 906
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 510
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 908
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 1420
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 438
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 888
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 398
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 3359
+   }
+  ]
+ },
+ "r5-grep-gson-2": {
+  "llm_calls": 8,
+  "input": 99461,
+  "cached_input": 92992,
+  "uncached_input": 6469,
+  "output": 2035,
+  "series": [
+   {
+    "call": 1,
+    "input": 9164,
+    "cached": 9088,
+    "uncached": 76,
+    "output": 118,
+    "added": 9164
+   },
+   {
+    "call": 2,
+    "input": 9440,
+    "cached": 9216,
+    "uncached": 224,
+    "output": 76,
+    "added": 276
+   },
+   {
+    "call": 3,
+    "input": 10290,
+    "cached": 9408,
+    "uncached": 882,
+    "output": 93,
+    "added": 850
+   },
+   {
+    "call": 4,
+    "input": 11619,
+    "cached": 10304,
+    "uncached": 1315,
+    "output": 227,
+    "added": 1329
+   },
+   {
+    "call": 5,
+    "input": 13362,
+    "cached": 11776,
+    "uncached": 1586,
+    "output": 247,
+    "added": 1743
+   },
+   {
+    "call": 6,
+    "input": 14168,
+    "cached": 13504,
+    "uncached": 664,
+    "output": 138,
+    "added": 806
+   },
+   {
+    "call": 7,
+    "input": 15125,
+    "cached": 14208,
+    "uncached": 917,
+    "output": 475,
+    "added": 957
+   },
+   {
+    "call": 8,
+    "input": 16293,
+    "cached": 15488,
+    "uncached": 805,
+    "output": 661,
+    "added": 1168
+   }
+  ],
+  "base_first_call": 9164,
+  "result_bytes_by_tool": {
+   "bash": 23247
+  },
+  "call_args_bytes_by_tool": {
+   "bash": 7124
+  },
+  "events": [
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 398
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 372
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 264
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 246
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 546
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 3128
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 304
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 358
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 685
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 4627
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 620
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 398
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 1840
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 4749
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 1648
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 2039
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 996
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 2982
+   },
+   {
+    "kind": "call",
+    "tool": "bash",
+    "bytes": 1484
+   },
+   {
+    "kind": "result",
+    "tool": "bash",
+    "bytes": 2687
+   }
+  ]
+ }
+}

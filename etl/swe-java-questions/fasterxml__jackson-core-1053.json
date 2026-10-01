@@ -1,0 +1,43 @@
+{
+  "task_id": "fasterxml__jackson-core-1053",
+  "repo": "FasterXML/jackson-core",
+  "base_commit": "bb778a0a4d6d492ca0a39d7d0e32b6e44e90e7aa",
+  "source": "SWE-bench-java-verified (HF Daoguang/Multi-SWE-bench, swe-bench-java-verified.json)",
+  "issue_summary": "Version.compareTo/equals/hashCode ignore _snapshotInfo (semver: 1.0.0-alpha < 1.0.0-beta).",
+  "gold_patch_file": "src/main/java/com/fasterxml/jackson/core/Version.java",
+  "spot_check": "Q4 and Q5 grep-verified against base-commit clone; round-5 bakeoff validated all five ground truths",
+  "questions": [
+    {
+      "q": "Where is jackson-core's Version class and its compareTo implementation?",
+      "route_hint": "ask",
+      "ground_truth_strict": "src/main/java/com/fasterxml/jackson/core/Version.java - class at L16 (implements Comparable<Version>, Serializable), compareTo(Version) at L135 (line 134 is the @Override/preceding line; arms citing 134 accepted within +/-1)",
+      "ground_truth_lenient": "Version.java + compareTo"
+    },
+    {
+      "q": "Where is the _snapshotInfo field declared and which methods read it?",
+      "route_hint": "field-usage",
+      "ground_truth_strict": "Version.java L37 (protected final String _snapshotInfo); assigned in constructor at L60; read by isSnapshot() at L82 and the toString path at L110 (sb.append('-').append(_snapshotInfo)). At the base commit compareTo/equals/hashCode do NOT read it - that omission is the bug.",
+      "ground_truth_lenient": "Version.java",
+      "round5_note": "ask field-usage route MATCHED for both gv arms on this real field (contrast gson Q3 where the target was a method parameter -> honest null)"
+    },
+    {
+      "q": "Which utility constructs Version instances at runtime, and which main-source class calls it in a live code path?",
+      "route_hint": "callpath",
+      "ground_truth_strict": "src/main/java/com/fasterxml/jackson/core/util/VersionUtil.java - versionFor(Class) at L60, packageVersionFor at L89, mavenVersionFor at L109, parseVersion at L140 (constructs via new Version). Live main-source caller: JsonGeneratorImpl.java:139 (version() -> VersionUtil.versionFor(getClass())). Note: the version instance normally comes from the generated PackageVersion class.",
+      "ground_truth_lenient": "VersionUtil"
+    },
+    {
+      "q": "Which tests cover Version comparison semantics?",
+      "route_hint": "tests",
+      "ground_truth_strict": "src/test/java/com/fasterxml/jackson/core/VersionTest.java (testCompareToOne, testCompareToReturningZero, testCompareToTwo, testCreatesVersionTaking6ArgumentsAndCallsCompareTo, testCompareToAndCreatesVersionTaking6ArgumentsAndUnknownVersion) and src/test/java/com/fasterxml/jackson/core/TestVersions.java (testCoreVersions, testMisc)",
+      "ground_truth_lenient": "VersionTest.java"
+    },
+    {
+      "q": "Where is the separator pattern used to split a version string into major/minor/patch/snapshot parts defined?",
+      "route_hint": "literal",
+      "ground_truth_strict": "V_SEP = Pattern.compile(\"[-_./;:]\") at VersionUtil.java L28 (private final static Pattern), used in parseVersion at L143 (V_SEP.split(s)); snapshot info is parts[3] if present",
+      "ground_truth_lenient": "VersionUtil",
+      "round5_note": "No literal route in ask: gv-jackson-1 got matched=null twice and used the sanctioned grep fallback; gv-jackson-2 answered WITHOUT fallback via class_members(fields) on VersionUtil + field-usage on V_SEP - the graph CAN serve this question through the fields relation, at the cost of 2-3 calls vs grep's 1"
+    }
+  ]
+}
