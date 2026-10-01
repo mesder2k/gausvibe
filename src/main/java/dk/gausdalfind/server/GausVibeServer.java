@@ -260,16 +260,27 @@ public class GausVibeServer {
         
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            String response = "Not implemented";
+            String response;
+            int status = 200;
             try {
                 response = handleRequest(exchange);
-            } catch (Exception e) {
-                response = responseJson(500, Map.of("error", e.getMessage()));
-                exchange.sendResponseHeaders(500, response.length());
+            } catch (Throwable t) {
+                // Throwable, not Exception: Errors (StackOverflowError,
+                // OutOfMemoryError) otherwise kill the handler thread
+                // silently - an empty reply with nothing in the log
+                // (found during round-6 dubbo spot checks). Log loudly.
+                t.printStackTrace();
+                status = 500;
+                String msg = t.getMessage() != null
+                    ? t.getMessage() : t.getClass().getSimpleName();
+                response = responseJson(500, Map.of("error", msg));
             }
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
-            exchange.sendResponseHeaders(200, response.length());
+            // exactly one sendResponseHeaders: the old 500 path sent 500 AND
+            // fell through to a second send, throwing IllegalStateException
+            // and converting every handler error into a silent empty reply
+            exchange.sendResponseHeaders(status, response.length());
             try (OutputStream os = exchange.getResponseBody()) {
                 os.write(response.getBytes(StandardCharsets.UTF_8));
             }
