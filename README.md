@@ -75,12 +75,12 @@ List<MethodNode> callers = queryEngine.getCallers(methodNode);
 git clone https://github.com/magnusfind/gausvibe.git
 cd gausvibe
 
-# Build the JAR
-mvn clean package
+# Build the runnable JAR (shaded, all dependencies included)
+./scripts/build-artifact.sh
 
 # The build produces:
-# - target/gausvibe-1.0.0.jar (library)
-# - target/gausvibe-1.0.0-cli.jar (executable with main class)
+# - target/gausvibe-<version>.jar (library)
+# - target/gausvibe-<version>-all.jar (executable, version = git commit count)
 ```
 
 ### Maven Dependency
@@ -89,7 +89,7 @@ mvn clean package
 <dependency>
     <groupId>dk.gausdalfind</groupId>
     <artifactId>gausvibe</artifactId>
-    <version>1.0.0</version>
+    <version>YOUR VERSION</version>
 </dependency>
 ```
 

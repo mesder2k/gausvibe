@@ -16,14 +16,33 @@ Vibe session --MCP stdio--> GausVibeMcpServer --HTTP--> GausVibeServer daemon (o
   start instantly, so it never builds a graph. Tools fail open with a
   "not reachable" hint until the daemon is up.
 
+## Artifact and versioning
+
+- Build: `./scripts/build-artifact.sh` produces
+  `target/gausvibe-<N>-all.jar`, where `<N>` is the git commit count
+  (`git rev-list --count HEAD`). The version is embedded in the jar
+  manifest and printed by `java -jar <jar> version`; the MCP
+  `initialize` response reports it as `serverInfo.version` too.
+- Install: `./scripts/build-artifact.sh --install` refreshes
+  `~/.vibe/plugins/gausvibe/gausvibe.jar` — the artifact the Vibe plugin
+  launches (`mcp.json` next to it). Rebuild AND reinstall after code
+  changes, or the tools keep running the old code.
+- Plain `mvn clean package` (without the script) builds a jar versioned
+  `dev`; use the script for anything that runs.
+- The pre-artifact, classpath-based plugin config is backed up at
+  `~/.vibe/plugins/gausvibe/mcp.json.bak-classpath`.
+
 ## Running the daemon
+
+The runtime artifact is the shaded jar installed at
+`~/.vibe/plugins/gausvibe/gausvibe.jar` (rebuild + reinstall with
+`./scripts/build-artifact.sh --install` in the gausvibe repo; the version is
+the git commit count). The git repo is not needed at run time.
 
 Fast (gausvibe repo itself, ~5s):
 
 ```bash
-CP=$(jq -r '.mcpServers.gausvibe.args[1]' ~/.vibe/plugins/gausvibe/mcp.json)
-nohup java -cp "$CP" \
-  dk.gausdalfind.server.GausVibeServer \
+nohup java -jar ~/.vibe/plugins/gausvibe/gausvibe.jar server \
   --project /Users/magnusfind/Documents/find-shadow-model/gausvibe \
   --port 8094 \
   > /tmp/gausvibe-daemon.log 2>&1 &
@@ -32,9 +51,7 @@ nohup java -cp "$CP" \
 Elasticsearch `server` module (~20 min build, ~350k nodes incl. tests):
 
 ```bash
-CP=$(jq -r '.mcpServers.gausvibe.args[1]' ~/.vibe/plugins/gausvibe/mcp.json)
-nohup java -Xmx6g -cp "$CP" \
-  dk.gausdalfind.server.GausVibeServer \
+nohup java -Xmx6g -jar ~/.vibe/plugins/gausvibe/gausvibe.jar server \
   --project /Users/magnusfind/Documents/find-shadow-model/elasticsearch/server \
   --port 8094 \
   > /tmp/gausvibe-daemon.log 2>&1 &

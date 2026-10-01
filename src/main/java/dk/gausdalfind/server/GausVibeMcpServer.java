@@ -7,6 +7,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import dk.gausdalfind.Version;
+
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.URI;
@@ -130,7 +132,7 @@ public class GausVibeMcpServer {
                 result.add("capabilities", capabilities);
                 JsonObject serverInfo = new JsonObject();
                 serverInfo.addProperty("name", "gausvibe");
-                serverInfo.addProperty("version", "1.0.0");
+                serverInfo.addProperty("version", Version.get());
                 result.add("serverInfo", serverInfo);
                 return result;
             }

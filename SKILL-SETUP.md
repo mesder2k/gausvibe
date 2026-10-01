@@ -16,9 +16,8 @@ No Python wrappers. No external dependencies. The GausVibe REST server (`dk.gaus
 ### Start It
 ```bash
 cd /Users/magnusfind/Documents/find-shadow-model/gausvibe
-mvn clean compile
-CP=$(mvn -q dependency:build-classpath -Dmdep.outputFile=/dev/stdout)
-java -cp "target/classes:$CP" dk.gausdalfind.server.GausVibeServer \
+./scripts/build-artifact.sh
+java -jar target/gausvibe-<version>-all.jar server \
   --project ../bakeoff1 --port 8080
 ```
 
@@ -85,10 +84,8 @@ const serverCheck = await tools.file_system.bash({
 if (serverCheck.stdout.includes("STOPPED")) {
   // Start server in background
   await tools.file_system.bash({
-    command: "cd /Users/magnusfind/Documents/find-shadow-model/gausvibe && " +
-             "CP=$(mvn -q dependency:build-classpath -Dmdep.outputFile=/dev/stdout 2>/dev/null) && " +
-             "nohup java -cp \"target/classes:$CP\" " +
-             "dk.gausdalfind.server.GausVibeServer --project ../bakeoff1 --port 8080 > /tmp/gausvibe.log 2>&1 &"
+    command: "nohup java -jar ~/.vibe/plugins/gausvibe/gausvibe.jar server " +
+             "--project ../bakeoff1 --port 8080 > /tmp/gausvibe.log 2>&1 &"
   });
   await tools.self.sleep({ seconds: 3 });
 }

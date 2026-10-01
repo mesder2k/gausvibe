@@ -46,3 +46,28 @@ the open backlog first:
 Pull open tasks from project `6hfw8M9448FQV96W`, sorted by priority, and
 summarize them. Do not invent tasks from the old markdown plans unless the
 user asks for that specifically.
+
+## Artifact workflow (runtime)
+
+The Vibe plugin launches GausVibe from the installed artifact
+`~/.vibe/plugins/gausvibe/gausvibe.jar` (configured in
+`~/.vibe/plugins/gausvibe/mcp.json`). The git repo is a build input only —
+never launch tools via `target/classes` plus ad-hoc `.m2` classpaths.
+
+Rules:
+
+- Build the runnable jar with `./scripts/build-artifact.sh`. It produces
+  `target/gausvibe-<N>-all.jar`, where `<N>` is the git commit count
+  (`git rev-list --count HEAD`). The version is embedded in the jar
+  manifest (`Implementation-Version`) and printed by
+  `java -jar <jar> version`.
+- After changing GausVibe code, rebuild AND reinstall so the tools run the
+  new code: `./scripts/build-artifact.sh --install`.
+- The jar is self-contained (shaded, no classpath needed) and dispatches
+  subcommands: `server`, `mcp`, `build`, `query`, `edit`, `interactive`;
+  anything else delegates to the CLI.
+- The graph daemon runs separately and owns the graph:
+  `nohup java -jar ~/.vibe/plugins/gausvibe/gausvibe.jar server --project <path> --port 8094 &`
+  Check with `curl -s -m 2 http://localhost:8094/stats`.
+- Operational detail lives in RUNBOOK.md; the old classpath-based plugin
+  config is backed up at `~/.vibe/plugins/gausvibe/mcp.json.bak-classpath`.
