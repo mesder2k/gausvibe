@@ -611,9 +611,8 @@ vibe tool gausvibe:build --path . --verbose
 
 - **[USAGE.md](../../USAGE.md)** - **Complete usage guide for coding harness integration**
 - **[README.md](../../README.md)** - Project overview and quick start
-- [TASK_BREAKDOWN.md](../../TASK_BREAKDOWN.md) - Core project implementation details
-- [DEBUGGER_INTEGRATION.md](../../DEBUGGER_INTEGRATION.md) - Differential debugging extension
-- [LLM_INTEGRATION.md](../../LLM_INTEGRATION.md) - LLM integration scoping document
+- [TASK_BREAKDOWN.md](../../docs/history/TASK_BREAKDOWN.md) - Core project implementation details (archived)
+- [DEBUGGER_INTEGRATION.md](../../docs/history/DEBUGGER_INTEGRATION.md) - Differential debugging extension (archived)
 
 ---
 

@@ -257,7 +257,7 @@ public class SelfEditValidationTest {
         System.out.println("  - Parsed: " + graph.getNodeCount() + " nodes");
         System.out.println("  - Edited: Added getSelfEditStatus() to CommandLineInterface");
         System.out.println("  - Serialized: dk/gausdalfind/cli/CommandLineInterface.java");
-        System.out.println("  - ⚠️  Compilation verification requires Maven (see ISSUES.md)");
+        System.out.println("  - ⚠️  Compilation verification requires Maven (see docs/history/ISSUES.md)");
     }
     
     /**

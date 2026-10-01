@@ -244,9 +244,8 @@ gausvibe/
 ├── pom.xml                  # Maven config
 ├── target/                  # Build output
 ├── HOW_TO_EDIT.md           # Self-editing guide
-├── SELF_EDIT_WORKFLOW.md    # Safe workflow
 ├── QUICK_START.md           # This file
-└── ...
+└── docs/history/            # Archived planning docs
 ```
 
 ---
@@ -316,12 +315,11 @@ Once Maven is installed:
 | Document | Purpose |
 |----------|---------|
 | [HOW_TO_EDIT.md](HOW_TO_EDIT.md) | Detailed self-editing guide |
-| [SELF_EDIT_WORKFLOW.md](SELF_EDIT_WORKFLOW.md) | Safe branch-based workflow |
-| [PHASE5_STATUS.md](PHASE5_STATUS.md) | Phase 5 implementation status |
-| [ISSUES.md](ISSUES.md) | Known issues and blockers |
-| [OPTIMIZATION_SUMMARY.md](OPTIMIZATION_SUMMARY.md) | Optimization overview |
-| [PERFORMANCE_OPTIMIZATION_PLAN.md](PERFORMANCE_OPTIMIZATION_PLAN.md) | Detailed optimization plan |
-| [SELF_HOSTING_MVP.md](SELF_HOSTING_MVP.md) | Self-hosting implementation plan |
+
+Superseded planning and status docs (SELF_EDIT_WORKFLOW.md, PHASE5_STATUS.md,
+ISSUES.md, OPTIMIZATION_SUMMARY.md, PERFORMANCE_OPTIMIZATION_PLAN.md,
+SELF_HOSTING_MVP.md, and others) are archived under
+[docs/history/](docs/history/).
 
 ---
 

@@ -1410,7 +1410,7 @@ CachingQueryEngine cache = new CachingQueryEngine(
 1. Check this documentation
 2. Review the **[SKILL.md](skills/gausvibe/SKILL.md)** for Vibe-specific integration
 3. Look at the **[test files](src/test/java)** for usage examples
-4. Check **[CHANGES.md](CHANGES.md)** for recent changes
+4. Check **[CHANGES.md](docs/history/CHANGES.md)** for recent changes
 
 ### Debug Mode
 
@@ -1431,8 +1431,8 @@ builder.setVerbose(true);
 
 - **[README.md](README.md)** - Project overview and quick start
 - **[SKILL.md](skills/gausvibe/SKILL.md)** - Vibe skill integration
-- **[PERFORMANCE_OPTIMIZATION_PLAN.md](PERFORMANCE_OPTIMIZATION_PLAN.md)** - Technical details on optimizations
-- **[CHANGES.md](CHANGES.md)** - Changelog and release notes
+- **[PERFORMANCE_OPTIMIZATION_PLAN.md](docs/history/PERFORMANCE_OPTIMIZATION_PLAN.md)** - Technical details on optimizations (archived)
+- **[CHANGES.md](docs/history/CHANGES.md)** - Changelog and release notes (archived)
 - **[JavaDoc](target/site/apidocs/)** - API documentation (generate with `mvn javadoc:javadoc`)
 
 ---

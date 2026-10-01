@@ -100,10 +100,11 @@ The ETL analysis directly informed the optimization plans:
 
 The insights from this ETL analysis were used to create the main optimization plans:
 
-- `IMPLEMENTATION_GUIDE.md` - Step-by-step implementation plan
-- `TOKEN_SAVINGS_PLAN.md` - Token-focused optimization analysis
-- `TOKEN_SAVINGS_CHECKLIST.md` - Task checklist
-- `PERFORMANCE_OPTIMIZATION_PLAN.md` - Complete optimization reference
+- `docs/history/PERFORMANCE_OPTIMIZATION_PLAN.md` - Complete optimization reference
+
+Other planning docs previously listed here (IMPLEMENTATION_GUIDE.md,
+TOKEN_SAVINGS_PLAN.md, TOKEN_SAVINGS_CHECKLIST.md) were superseded and
+removed; see `docs/history/` for archived planning artifacts.
 
 ## 💡 **Note**
 
