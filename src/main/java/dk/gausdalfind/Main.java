@@ -48,7 +48,7 @@ public class Main {
     }
 
     private static void printHelp() {
-        System.out.println("GausVibe 1.0.0 - Structured graph of Java code");
+        System.out.println("GausVibe v" + Version.get() + " - Structured graph of Java code");
         System.out.println();
         System.out.println("Usage: java -jar gausvibe.jar <command> [options]");
         System.out.println();

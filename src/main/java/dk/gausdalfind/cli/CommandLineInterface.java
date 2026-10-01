@@ -1,5 +1,6 @@
 package dk.gausdalfind.cli;
 
+import dk.gausdalfind.Version;
 import dk.gausdalfind.editing.*;
 import dk.gausdalfind.graph.GausVibeBuilder;
 import dk.gausdalfind.model.*;
@@ -27,7 +28,7 @@ import java.util.*;
  */
 public class CommandLineInterface {
     
-    private static final String VERSION = "1.0.0";
+    private static final String VERSION = Version.get();
     private static final String PROMPT = "gausvibe> ";
     
     private Graph graph;

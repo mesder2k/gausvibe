@@ -20,8 +20,8 @@ Vibe session --MCP stdio--> GausVibeMcpServer --HTTP--> GausVibeServer daemon (o
 
 The runtime artifact is the shaded jar installed at
 `~/.vibe/plugins/gausvibe/gausvibe.jar` (rebuild + reinstall with
-`./scripts/install-artifact.sh` in the gausvibe repo). The git repo is not
-needed at run time.
+`./scripts/build-artifact.sh --install` in the gausvibe repo; the version is
+the git commit count). The git repo is not needed at run time.
 
 Fast (gausvibe repo itself, ~5s):
 

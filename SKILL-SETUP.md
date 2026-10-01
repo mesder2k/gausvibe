@@ -16,8 +16,8 @@ No Python wrappers. No external dependencies. The GausVibe REST server (`dk.gaus
 ### Start It
 ```bash
 cd /Users/magnusfind/Documents/find-shadow-model/gausvibe
-mvn clean package
-java -jar target/gausvibe-1.0.0-all.jar server \
+./scripts/build-artifact.sh
+java -jar target/gausvibe-<version>-all.jar server \
   --project ../bakeoff1 --port 8080
 ```
 
