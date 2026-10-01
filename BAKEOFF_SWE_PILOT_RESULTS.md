@@ -114,3 +114,62 @@ Totals: gv 18/20 strict, grep 17/20 strict; lenient (must-mention set)
   (Todoist 6hg86RQH3MCrh4mW).
 - Scale question sets to the remaining instances, preferring ones whose issue
   text names no location (gson-1391 pattern) over lookup-trivial ones.
+
+## Rerun after fixes (r5b, 2026-10-01)
+
+Same 10 questions, same repos and base commits, same 4-arm protocol, after
+PR #4 (field-location route, honest nulls, compact payloads, relative paths)
+and the BaseHandler fix (PR #5). Attribution: etl/results-r5b/*.json.
+
+| arm | calls | billable | result bytes |
+|---|---|---|---|
+| gv-gson-1 | 8 | 18,010 | 23,127 |
+| gv-gson-2 | 10 | 8,914 | 62,496 |
+| grep-gson-1 | 10 | 8,225 | 21,049 |
+| grep-gson-2 | 9 | 8,032 | 19,069 |
+| gv-jackson-1 | 11 | 10,263 | 19,410 |
+| gv-jackson-2 | 8 | 7,191 | 12,788 |
+| grep-jackson-1 | 7 | 4,783 | 10,945 |
+| grep-jackson-2 | 5 | 3,434 | 7,210 |
+
+Billable (uncached input + output), avg per config:
+
+| repo | round 5 gv vs grep | rerun gv vs grep |
+|---|---|---|
+| gson | 24,534 vs 5,752 (4.3x) | 13,462 vs 8,128 (1.7x) |
+| jackson | 10,565 vs 7,477 (1.4x) | 8,727 vs 4,108 (2.1x) |
+
+Correctness (strict): gv 19/20 (95%), grep 17/20 (85%) - round 5 was 18/20
+vs 17/20. Jackson: 20/20 across all four arms.
+
+What the fixes changed:
+
+1. Payload trims landed as measured: gv worst-case result bytes 121k -> 23k
+   on gson. Remaining big payload: callpath returning 260 chains (~40KB) -
+   next trim candidate (cap chains, like MAX_LINES elsewhere).
+2. The field-location route served jackson Q5 (V_SEP) for BOTH gv arms - the
+   question that in round 5 produced matched=null and a grep fallback in one
+   arm. The arm notes the answer includes unrelated Separators-class fields
+   (ranked list) but identified V_SEP correctly. Zero fuzzy mis-matches.
+3. The same-class-caller gap is now CONFIRMED structural: both rerun grep
+   arms missed $Gson$Types.getSupertype as a caller of resolve (naive
+   'grep Types.resolve(' cannot see bare same-class calls); both gv arms
+   found it via the graph. This is gv's clearest correctness win.
+4. Field-usage honest-null behavior unchanged and correct (gson Q3 is a
+   method parameter): both gv arms null -> marked fallback -> correct
+   answer. One small gap: the follow-up "who uses V_SEP" returned null
+   although V_SEP is a real field (usages not indexed?) - worth a look.
+5. grep arm variance is real too: grep-gson-1 missed TypeVariableTest this
+   round (round 5 grep arms found it) - within-config variance exists on
+   both sides, not only for gv.
+
+Remaining gv costs: callpath payloads (260 chains), tests answer still
+large-ish on big test suites (see dubbo spot check: 314 classes, 59KB -
+cap still needed, tracked on the dubbo round-6 task), and discovery
+(search_tool_functions) in some gv arms.
+
+Verdict update: with the fixes merged, gv is at near-parity on billable
+tokens for small repos (best gv arm 8.9k vs grep 8.1k avg on gson) while
+holding a 2-answer correctness edge, driven by the caller-completeness the
+graph has and grep structurally lacks. The large-repo cell (dubbo) remains
+the open question - see Todoist 6hg8H52Hp7V4MVMW.
