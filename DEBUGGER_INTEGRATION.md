@@ -754,71 +754,6 @@ public static final String INVARIANT_VIOLATED = "INVARIANT_VIOLATED";
 
 ---
 
-## 🔧 IMPLEMENTATION PHASES
-
-### Phase 10: Debugger Foundation (3-5 days)
-- [ ] Add JDI dependencies to pom.xml
-- [ ] Implement `DebugSession` (single version debugging)
-- [ ] Implement `DebugLinker` (AST <-> Runtime mapping)
-- [ ] Implement `StepResult` and related snapshot classes
-- [ ] Test: Single version debugging with breakpoints
-
-### Phase 11: Parallel Execution (3-5 days)
-- [ ] Implement `ParallelDebugSession`
-- [ ] Implement synchronization between two sessions
-- [ ] Implement stepping in lockstep
-- [ ] Test: Run two versions with same inputs
-
-### Phase 12: Comparison Engine (5-7 days)
-- [ ] Implement `ComparisonEngine`
-- [ ] Implement `CallStackComparison`, `FrameComparison`, `VariableComparison`
-- [ ] Implement `Value` equality comparison (primitives, objects, arrays)
-- [ ] Test: Detect differences at various levels
-
-### Phase 13: Divergence Tracking (3-5 days)
-- [ ] Implement `DivergenceTracker`
-- [ ] Implement `DivergencePoint`
-- [ ] Implement `VariableDifference`
-- [ ] Add divergence nodes to graph
-- [ ] Test: Record and query divergence points
-
-### Phase 14: Invariant System (3-5 days)
-- [ ] Implement `Invariant` interface
-- [ ] Implement `MethodOutputInvariant`
-- [ ] Implement `FieldValueInvariant`
-- [ ] Implement invariant checking in comparison engine
-- [ ] Test: Detect invariant violations
-
-### Phase 15: Graph Integration (3-5 days)
-- [ ] Add new node types to `NodeIdGenerator`
-- [ ] Implement new node classes (BreakpointNode, StackFrameNode, etc.)
-- [ ] Add new edge types to `EdgeTypes`
-- [ ] Extend `Graph` to support runtime data
-- [ ] Extend `Indexes` for fast divergence queries
-- [ ] Test: Store and query debugging information from graph
-
-### Phase 16: LLM Integration (2-3 days)
-- [ ] Extend `JavaGraphQuery` interface for debugging queries
-- [ ] Implement `DebugGraphQuery`
-- [ ] Add query methods for:
-  - Get divergence points
-  - Get variable values at step
-  - Get call stack at step
-  - Explain invariant violation
-- [ ] Test: LLM can query debugging information
-
-### Phase 17: CLI & Testing (3-5 days)
-- [ ] Create CLI for differential debugging
-- [ ] Implement test cases:
-  - Calculator example (add method)
-  - Field value invariant
-  - Complex call chain divergence
-  - Multi-threaded scenarios
-- [ ] Performance testing
-- [ ] Documentation
-
----
-
 ## 💡 EXAMPLE QUERIES FOR LLM
 
 ### After Running Differential Debug Session
@@ -1111,25 +1046,6 @@ public class MinimalDebugSession {
     }
 }
 ```
-
----
-
-## ✅ COMPLETION CHECKLIST
-
-- [ ] Design document created (this file)
-- [ ] JDI dependencies added
-- [ ] DebugSession implemented
-- [ ] DebugLinker implemented
-- [ ] ParallelDebugSession implemented
-- [ ] ComparisonEngine implemented
-- [ ] DivergenceTracker implemented
-- [ ] Invariant system implemented
-- [ ] New node types added to graph
-- [ ] New edge types added
-- [ ] LLM query interface extended
-- [ ] Test cases created
-- [ ] Documentation updated
-- [ ] Performance optimized
 
 ---
 

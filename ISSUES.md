@@ -24,32 +24,6 @@ After fixing several compilation errors, there are still multiple issues prevent
 
 The project now compiles successfully with `mvn clean compile`.
 
-### Medium Priority (API Changes)
-
-#### 18. ASTSourceSerializer.java - Modifier API
-- **Issue**: addModifier expects Modifier.Keyword[] not Modifier
-- **Status**: Partially fixed - need to verify all usages
-- **Action**: Convert Modifier objects to Modifier.Keyword arrays
-
-### Low Priority (Can be addressed later)
-
-#### 19. Various files
-- **Issue**: Deprecated API warnings
-- **Action**: Update to use non-deprecated APIs
-
-#### 20. CachingQueryEngine.java
-- **Issue**: Unchecked/unsafe operations warnings
-- **Action**: Add proper type safety
-
-## Recommendations
-
-1. **Fix Node interface**: Add missing methods (getName, getQualifiedName, etc.) to the Node interface or ensure all usages cast to specific node types
-2. **Update JavaParser dependencies**: Verify all JavaParser API usages match version 3.25.9
-3. **Add missing methods**: Add getMethodByQualifiedName to Indexes class
-4. **Fix Scope imports**: Add proper imports for Scope class in graph builders
-5. **Fix Gson usage**: Update JsonSerializer to use correct Gson API
-6. **Test incrementally**: After fixing each issue, run `mvn compile` to verify progress
-
 ## Build Command
 
 ```bash

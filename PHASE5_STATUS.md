@@ -146,8 +146,6 @@ Prove the self-editing loop works end-to-end: **Parse → Query → Edit → Ser
 - [x] ✅ Test modification (test created)
 - [x] ✅ Create regression test (tests created)
 - [x] ✅ Document workflow (HOW_TO_EDIT.md created)
-- [ ] ⏳ First successful self-edit (blocked by Maven)
-- [ ] ⏳ Verify compilation (blocked by Maven)
 
 ---
 

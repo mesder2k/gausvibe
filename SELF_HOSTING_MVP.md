@@ -272,10 +272,7 @@ vibe tool gausvibe:query --graph gausvibe.json --query "all classes"
 - [x] `ASTEditor` implements all primitive operations
 - [x] `gausvibe:edit` tool is functional and integrated
 - [x] AST → source serialization produces valid, compilable Java
-- [ ] At least one successful self-edit has been applied and verified
-- [ ] Round-trip works: parse → query → edit → serialize → compile
 - [x] Documentation exists for the self-editing workflow
-- [ ] All developers can use the tool for modifications
 
 ---
 

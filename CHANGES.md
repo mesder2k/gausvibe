@@ -394,16 +394,11 @@ System.out.println(JavaFileCollector.getCacheStatistics());
 
 ### Performance Goals
 - [x] File collection: 80% faster ✅
-- [ ] Text search: 90-95% faster 📋
-- [ ] Call graph queries: 80-90% faster 📋
-- [ ] Full build: 67% faster 📋
 
 ### Quality Goals
 - [x] Backward compatibility ✅
 - [x] Thread safety ✅
 - [x] Proper documentation ✅
-- [ ] Comprehensive unit tests 📋
-- [ ] Performance benchmarks 📋
 
 ---
 

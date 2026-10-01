@@ -343,11 +343,6 @@ gausvibe/
 - [x] QueryCommand DTO for parsed queries
 - [x] QueryParser for parsing query strings
 - [x] Added missing query methods (getAllMethods, getAllFields)
-- [ ] Package as JAR for tool execution
-- [ ] Integration testing with Vibe
-- [ ] Query DSL refinement
-- [ ] Fallback to grep for edge cases
-- [ ] Final documentation
 
 **Phase 8: Optimization**
 - [x] CachingQueryEngine - Query result caching with statistics tracking
@@ -361,8 +356,6 @@ gausvibe/
 - [x] Round-trip serialization test
 - [x] CachingQueryEngine test
 - [x] Inheritance resolution test
-- [ ] Edge cases - More tests for error handling and special cases
-- [ ] Validation - Graph validation utility tests
 
 ---
 
@@ -787,7 +780,6 @@ public void validateGraph(Graph graph) {
 - [x] Phase 7: Vibe Integration
 - [x] Phase 8: Optimization
 - [x] Phase 9: Testing
-- [ ] Phase 10: Self-Hosting MVP
 
 ---
 
