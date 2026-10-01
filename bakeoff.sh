@@ -1,6 +1,6 @@
 #!/bin/bash
 # GausVibe Bake-Off Execution Script
-# Extracted from BAKEOFF_EXECUTION.md so it can actually be run by hand.
+# Extracted from docs/history/BAKEOFF_EXECUTION.md so it can actually be run by hand.
 
 set -e
 

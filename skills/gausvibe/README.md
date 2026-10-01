@@ -62,9 +62,8 @@ vibe tool gausvibe:query --graph /path/to/graph.json --query "who calls add()"
 ## 📚 Documentation
 
 - [SKILL.md](./SKILL.md) - Complete skill documentation
-- [../../TASK_BREAKDOWN.md](../../TASK_BREAKDOWN.md) - Project implementation breakdown
-- [../../DEBUGGER_INTEGRATION.md](../../DEBUGGER_INTEGRATION.md) - Debugger extension design
-- [../../LLM_INTEGRATION.md](../../LLM_INTEGRATION.md) - LLM integration scoping
+- [../../docs/history/TASK_BREAKDOWN.md](../../docs/history/TASK_BREAKDOWN.md) - Project implementation breakdown (archived)
+- [../../docs/history/DEBUGGER_INTEGRATION.md](../../docs/history/DEBUGGER_INTEGRATION.md) - Debugger extension design (archived)
 
 ## 🛠️ Development
 

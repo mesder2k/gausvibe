@@ -25,7 +25,7 @@ This guide explains how to modify GausVibe's own source code **using GausVibe it
 Before you can use GausVibe to edit itself, ensure:
 
 1. **GausVibe compiles successfully** - All compilation errors must be fixed
-2. **Maven is installed** - Required for compilation verification (currently a blocker, see ISSUES.md)
+2. **Maven is installed** - Required for compilation verification (currently a blocker, see docs/history/ISSUES.md)
 3. **Java 17+** - GausVibe requires Java 17
 
 ### Check Prerequisites
@@ -455,7 +455,7 @@ gausvibe> query:method:class:dk.gausdalfind.graph.GausVibeBuilder
 
 ## 🎯 Success Criteria for Phase 5
 
-According to SELF_HOSTING_MVP.md, Phase 5 is complete when:
+According to docs/history/SELF_HOSTING_MVP.md, Phase 5 is complete when:
 
 1. ✅ Test edit workflow (Query → Generate op → Apply → Serialize)
 2. ⏳ First successful self-edit (Add simple method and recompile)
@@ -469,10 +469,10 @@ According to SELF_HOSTING_MVP.md, Phase 5 is complete when:
 
 ## 📖 Related Documentation
 
-- [SELF_HOSTING_MVP.md](SELF_HOSTING_MVP.md) - Implementation plan for self-hosting
-- [OPTIMIZATION_SUMMARY.md](OPTIMIZATION_SUMMARY.md) - Optimization overview
-- [PERFORMANCE_OPTIMIZATION_PLAN.md](PERFORMANCE_OPTIMIZATION_PLAN.md) - Detailed optimization plan
-- [ISSUES.md](ISSUES.md) - Known issues and blockers
+- [SELF_HOSTING_MVP.md](docs/history/SELF_HOSTING_MVP.md) - Implementation plan for self-hosting (archived)
+- [OPTIMIZATION_SUMMARY.md](docs/history/OPTIMIZATION_SUMMARY.md) - Optimization overview (archived)
+- [PERFORMANCE_OPTIMIZATION_PLAN.md](docs/history/PERFORMANCE_OPTIMIZATION_PLAN.md) - Detailed optimization plan (archived)
+- [ISSUES.md](docs/history/ISSUES.md) - Known issues and blockers (archived)
 
 ---
 

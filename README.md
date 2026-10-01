@@ -192,8 +192,8 @@ See **[USAGE.md](USAGE.md)** for comprehensive documentation on:
 
 - **[USAGE.md](USAGE.md)** - Complete usage guide for coding harness integration
 - **[SKILL.md](skills/gausvibe/SKILL.md)** - Vibe skill integration documentation
-- **[PERFORMANCE_OPTIMIZATION_PLAN.md](PERFORMANCE_OPTIMIZATION_PLAN.md)** - Technical optimization details
-- **[CHANGES.md](CHANGES.md)** - Changelog and release notes
+- **[PERFORMANCE_OPTIMIZATION_PLAN.md](docs/history/PERFORMANCE_OPTIMIZATION_PLAN.md)** - Technical optimization details (archived)
+- **[CHANGES.md](docs/history/CHANGES.md)** - Changelog and release notes (archived)
 
 ---
 

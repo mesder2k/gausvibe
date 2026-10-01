@@ -1,7 +1,7 @@
 # ES round 4 ground-truth SEEDS — PARTIAL, operator must complete
 
 Status: seeds verified at ES `ba71896390a` on 2026-09-29 by grep+read.
-This file is INCOMPLETE on purpose: the operator pre-pass (BAKEOFF_ES_ROUND4.md
+This file is INCOMPLETE on purpose: the operator pre-pass (docs/history/BAKEOFF_ES_ROUND4.md
 "Ground truth") must finish it BEFORE any subagent is spawned. Subagents must
 never be shown this file.
 
