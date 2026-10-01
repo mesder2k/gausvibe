@@ -35,7 +35,7 @@ public final class JavaParserConfig {
         
         projectRoot = root;
         
-        StaticJavaParser.getConfiguration()
+        StaticJavaParser.getParserConfiguration()
             .setAttributeComments(true)
             .setStoreTokens(true)
             .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21);
