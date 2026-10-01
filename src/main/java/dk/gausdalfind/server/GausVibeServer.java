@@ -75,7 +75,33 @@ public class GausVibeServer {
     public static String getProjectPath() {
         return projectPath;
     }
-    
+
+    /**
+     * Strips the project root prefix from an absolute file path so answers
+     * stay short and repo-relative (round-4/5 finding: the absolute prefix
+     * alone is ~15-18% of the tests answer). Falls back to the input when
+     * the path is already relative or does not live under the project.
+     */
+    public static String relativePath(String file) {
+        if (file == null || projectPath == null) {
+            return file;
+        }
+        String norm = file.replace('\\', '/');
+        String root = projectPath.replace('\\', '/');
+        if (!root.endsWith("/")) {
+            root = root + "/";
+        }
+        if (norm.startsWith(root)) {
+            return norm.substring(root.length());
+        }
+        return file;
+    }
+
+    /** Path overload for node file references. */
+    public static String relativePath(java.nio.file.Path file) {
+        return file == null ? null : relativePath(file.toString());
+    }
+
     public static void main(String[] args) throws IOException {
         parseArgs(args);
         
@@ -287,7 +313,8 @@ public class GausVibeServer {
             endpoints.put("GET /", "Server info");
             endpoints.put("GET /classes", "List classes (optional ?package=X&prefix=Y&limit=N filters; 'count' is the returned slice, 'total' all matches)");
             endpoints.put("GET /classes/{fqn}", "Class details");
-            endpoints.put("GET /classes/{fqn}/methods", "Methods of class");
+            endpoints.put("GET /classes/{fqn}/methods", "Methods of class (compact names only; ?verbose=true adds signature+line details)");
+            endpoints.put("GET /classes/{fqn}/fields", "Fields of class");
             endpoints.put("GET /classes/{fqn}/subclasses", "Subclasses");
             endpoints.put("GET /classes/{fqn}/implementations", "Implementations");
             endpoints.put("GET /methods", "All methods");
@@ -299,7 +326,7 @@ public class GausVibeServer {
             endpoints.put("POST /feedback", "Rate an /ask answer (helpful, wrong, incomplete, too-big, other)");
             endpoints.put("POST /edited", "Report a file edit; GausVibe reparses just that file and updates the graph");
             endpoints.put("GET /changes", "Recent file updates reported via POST /edited");
-            endpoints.put("GET /tests/{fqn}", "Tests covering a class (by name convention and call graph)");
+            endpoints.put("GET /tests/{fqn}", "Tests covering a class (by name convention and call graph; ?methods=false drops the per-test-method coverage map, ?link=call-graph filters coverage semantics)");
             endpoints.put("GET /callpath?from=A&to=B", "Transitive call chains between two methods");
             endpoints.put("POST /refresh", "Full background rebuild; old graph serves until the swap");
             info.put("endpoints", endpoints);
@@ -371,7 +398,7 @@ public class GausVibeServer {
             String subpath = parts.length > 1 ? parts[1] : null;
             
             if (subpath != null) {
-                return handleSubpath(fqn, subpath);
+                return handleSubpath(fqn, subpath, exchange.getRequestURI().getQuery());
             }
             
             // Get class details
@@ -383,35 +410,47 @@ public class GausVibeServer {
             return toJson(classToMap(cls.get()));
         }
         
-        private String handleSubpath(String fqn, String subpath) {
-            switch (subpath) {
+        private String handleSubpath(String fqn, String subpath, String rawQuery) {
+            String sub = subpath;
+            boolean verbose = rawQuery != null && rawQuery.contains("verbose=true");
+            switch (sub) {
                 case "methods":
-                    return getMethods(fqn);
+                    return getMethods(fqn, verbose);
+                case "fields":
+                    return getFields(fqn);
                 case "subclasses":
                     return getSubclasses(fqn);
                 case "implementations":
                     return getImplementations(fqn);
                 default:
-                    return responseJson(404, Map.of("error", "Unknown subpath: " + subpath));
+                    return responseJson(404, Map.of("error", "Unknown subpath: " + sub));
             }
         }
-        
-        private String getMethods(String fqn) {
+
+        /**
+         * Compact by default: method names only. The signature+line detail
+         * list duplicates every entry and dominated the class_members
+         * payload (round-5: 41KB for one class); ?verbose=true brings it
+         * back.
+         */
+        private String getMethods(String fqn, boolean verbose) {
             Optional<ClassNode> cls = queryEngine.findClassByQualifiedName(fqn);
             if (!cls.isPresent()) {
                 return responseJson(404, Map.of("error", "Class not found: " + fqn));
             }
-            
+
             List<String> methods = new ArrayList<>();
             List<Map<String, Object>> methodDetails = new ArrayList<>();
             for (MethodNode method : queryEngine.getMethods(cls.get())) {
                 methods.add(method.getSignature());
-                Map<String, Object> detail = new LinkedHashMap<>();
-                detail.put("signature", method.getSignature());
-                if (method.getStartPosition() != null) {
-                    detail.put("line", method.getStartPosition().line());
+                if (verbose) {
+                    Map<String, Object> detail = new LinkedHashMap<>();
+                    detail.put("signature", method.getSignature());
+                    if (method.getStartPosition() != null) {
+                        detail.put("line", method.getStartPosition().line());
+                    }
+                    methodDetails.add(detail);
                 }
-                methodDetails.add(detail);
             }
             Collections.sort(methods);
 
@@ -419,7 +458,37 @@ public class GausVibeServer {
             result.put("class", fqn);
             result.put("count", methods.size());
             result.put("methods", methods);
-            result.put("method_details", methodDetails);
+            if (verbose) {
+                result.put("method_details", methodDetails);
+            }
+            return toJson(result);
+        }
+
+        private String getFields(String fqn) {
+            Optional<ClassNode> cls = queryEngine.findClassByQualifiedName(fqn);
+            if (!cls.isPresent()) {
+                return responseJson(404, Map.of("error", "Class not found: " + fqn));
+            }
+
+            List<Map<String, Object>> fields = new ArrayList<>();
+            for (FieldNode field : queryEngine.getFields(cls.get())) {
+                Map<String, Object> f = new LinkedHashMap<>();
+                f.put("name", field.getName());
+                f.put("qualified_name", field.getQualifiedName());
+                f.put("type", field.getDataType());
+                if (field.getFile() != null) {
+                    f.put("file", relativePath(field.getFile()));
+                    if (field.getStartPosition() != null) {
+                        f.put("line", field.getStartPosition().line());
+                    }
+                }
+                fields.add(f);
+            }
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("class", fqn);
+            result.put("count", fields.size());
+            result.put("fields", fields);
             return toJson(result);
         }
         
@@ -465,7 +534,7 @@ public class GausVibeServer {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("fqn", cls.getQualifiedName());
             map.put("name", cls.getName());
-            map.put("file", cls.getFile());
+            map.put("file", relativePath(cls.getFile()));
             if (cls.getStartPosition() != null) {
                 map.put("line", cls.getStartPosition().line());
             }
@@ -935,8 +1004,16 @@ public class GausVibeServer {
             MethodNode fuzzyMethod = resolveMethodFuzzy(candidates, queryEngine);
 
             if (lower.contains("implement")) {
-                return classQuery(question, resolution, "implementations",
+                Map<String, Object> implResult = classQuery(question, resolution, "implementations",
                     "No class or interface name found in the question");
+                // "where is ... its compareTo implementation" names a class,
+                // not an interface: zero implementations + location intent
+                // must fall through to the location routes (round-5 fix)
+                boolean zeroImpls = "implementations".equals(implResult.get("matched"))
+                    && ((Integer) implResult.get("count")) == 0;
+                if (!zeroImpls || !lower.contains("where")) {
+                    return implResult;
+                }
             }
             if (lower.contains("subclass") || lower.contains("extends")) {
                 return classQuery(question, resolution, "subclasses",
@@ -949,7 +1026,29 @@ public class GausVibeServer {
                 if (fieldResult != null) {
                     return fieldResult;
                 }
-                return callersQuery(question, methodName);
+                // "where is the separator pattern used to split a version
+                // string defined": location intent + no named field - search
+                // field NAMES before answering coincidental method callers
+                // (round-5: 'version' resolved as a method name and hijacked
+                // the question to a callers answer). Skipped when the
+                // question carries a literal (value-question territory).
+                if (lower.contains("where")
+                    && (lower.contains("defined") || lower.contains("declared"))
+                    && extractLiterals(question).isEmpty()) {
+                    Map<String, Object> fieldLocation = fieldLocationQuery(question, candidates);
+                    if (fieldLocation != null) {
+                        return fieldLocation;
+                    }
+                }
+                // callers only on call-intent: "which methods read and write
+                // it" names no callable - answering callers of read() is a
+                // mis-route (round-5 verification: 65KB answer)
+                if (lower.contains("call")) {
+                    return callersQuery(question, methodName);
+                }
+                return unmatched(question, candidates,
+                    "No field named in the question - the referenced symbol may be a "
+                        + "method parameter or local variable, which the graph does not model");
             }
             // flow/path questions: only handled when a path actually resolves,
             // otherwise fall through to the other routes
@@ -979,6 +1078,23 @@ public class GausVibeServer {
                     "No class name found in the question");
             }
             if (lower.contains("field") || lower.contains("variable") || lower.contains("member")) {
+                if (resolution.fqn() != null) {
+                    return classQuery(question, resolution, "fields",
+                        "No class name found in the question");
+                }
+                // no class in the question: the tokens may name a FIELD
+                // ("where is the separator pattern defined") - answer its
+                // usages or location instead of failing on class resolution
+                Map<String, Object> fieldUsage = fieldUsageQuery(question, candidates);
+                if (fieldUsage != null) {
+                    return fieldUsage;
+                }
+                if (extractLiterals(question).isEmpty()) {
+                    Map<String, Object> fieldLocation = fieldLocationQuery(question, candidates);
+                    if (fieldLocation != null) {
+                        return fieldLocation;
+                    }
+                }
                 return classQuery(question, resolution, "fields",
                     "No class name found in the question");
             }
@@ -1110,8 +1226,21 @@ public class GausVibeServer {
             return score;
         }
 
-        /** First candidate that resolves to a method name. */
+        /**
+         * First candidate that resolves to a method name. Dotted candidates
+         * ("$Gson$Types.resolve") contribute their last segment first, so
+         * "who calls X.resolve" answers callers of resolve rather than
+         * latching onto a coincidental plain word like "main" (source).
+         */
         public static String resolveMethod(List<String> candidates, GraphQueryEngine engine) {
+            for (String c : candidates) {
+                if (c.indexOf('.') >= 0) {
+                    String last = c.substring(c.lastIndexOf('.') + 1);
+                    if (last.length() >= 2 && !engine.findMethodsByName(last).isEmpty()) {
+                        return last;
+                    }
+                }
+            }
             for (String c : candidates) {
                 if (c.indexOf('.') >= 0) continue;
                 if (!engine.findMethodsByName(c).isEmpty()) return c;
@@ -1172,7 +1301,7 @@ public class GausVibeServer {
                 default -> {
                     count = 1;
                     sb.append("Class ").append(classFqn).append(":\n");
-                    sb.append("  File: ").append(c.getFile());
+                    sb.append("  File: ").append(relativePath(c.getFile()));
                     if (c.getStartPosition() != null) {
                         sb.append(":").append(c.getStartPosition().line());
                     }
@@ -1221,6 +1350,9 @@ public class GausVibeServer {
             
             StringBuilder sb = new StringBuilder();
             int total = 0;
+            // per-test-method coverage is the bulk of the answer bytes
+            // (round-4/5: 8KB raw vs ~2KB without) - include only on request
+            boolean includeMethods = question.toLowerCase().contains("method");
             for (String fqn : targetClasses) {
                 Optional<ClassNode> cls = queryEngine.findClassByQualifiedName(fqn);
                 if (cls.isEmpty()) continue;
@@ -1237,17 +1369,19 @@ public class GausVibeServer {
                         sb.append("  - ").append(tm.get("test_class"));
                         Object file = tm.get("file");
                         if (file != null) {
-                            sb.append("  [").append(file).append("]");
+                            sb.append("  [").append(relativePath(file.toString())).append("]");
                         }
                         Object cov = tm.get("coverage");
                         if (cov != null) {
                             sb.append("  (").append(cov).append(")");
                         }
                         sb.append("\n");
-                        Object methods = tm.get("test_methods");
-                        if (methods instanceof Map && !((Map<?, ?>) methods).isEmpty()) {
-                            for (var e : ((Map<?, ?>) methods).entrySet()) {
-                                sb.append("      ").append(e.getKey()).append("\n");
+                        if (includeMethods) {
+                            Object methods = tm.get("test_methods");
+                            if (methods instanceof Map && !((Map<?, ?>) methods).isEmpty()) {
+                                for (var e : ((Map<?, ?>) methods).entrySet()) {
+                                    sb.append("      ").append(e.getKey()).append("\n");
+                                }
                             }
                         }
                         total++;
@@ -1292,14 +1426,18 @@ public class GausVibeServer {
             
             MethodNode best = null;
             int bestScore = 0;
+            int bestMatchedStems = 0;
+            int bestLongestStem = 0;
             for (MethodNode m : engine.getAllMethods()) {
                 String name = m.getName().toLowerCase();
                 int matched = 0;
                 int length = 0;
+                int longestStem = 0;
                 for (String stem : stems) {
                     if (name.contains(stem)) {
                         matched++;
                         length += stem.length();
+                        longestStem = Math.max(longestStem, stem.length());
                     }
                 }
                 if (matched == 0) {
@@ -1328,7 +1466,19 @@ public class GausVibeServer {
                 if (score > bestScore) {
                     best = m;
                     bestScore = score;
+                    bestMatchedStems = matched;
+                    bestLongestStem = longestStem;
                 }
+            }
+            // Confidence gate (round-4 Q9 / round-5 findings): a single
+            // short stem matching a method name is a spurious keyword hit,
+            // not an answer - "where is the number 8094 defined" must not
+            // resolve to findsQuotedLiteralAndPlainNumber. Serve the fuzzy
+            // match only when it is backed by several question stems or one
+            // long, specific stem; otherwise return null so the caller
+            // reports matched=null (the honest, cheap failure mode).
+            if (best != null && bestMatchedStems < 2 && bestLongestStem < 8) {
+                return null;
             }
             return best;
         }
@@ -1411,7 +1561,7 @@ public class GausVibeServer {
                     sb.append("  - ").append(occ.classFqn()).append(".").append(occ.fieldName())
                       .append(" = \"").append(occ.value()).append("\"");
                     if (occ.file() != null) {
-                        sb.append("  [").append(occ.file());
+                        sb.append("  [").append(relativePath(occ.file().toString()));
                         if (occ.line() > 0) {
                             sb.append(":").append(occ.line());
                         }
@@ -1456,7 +1606,7 @@ public class GausVibeServer {
                         }
                         sb.append("  - ").append(u.methodQualifiedName());
                         if (u.file() != null) {
-                            sb.append("  [").append(u.file());
+                            sb.append("  [").append(relativePath(u.file().toString()));
                             if (u.line() > 0) {
                                 sb.append(":").append(u.line());
                             }
@@ -1490,7 +1640,7 @@ public class GausVibeServer {
                     MethodNode caller = callers.get(i);
                     sb.append("    - ").append(caller.getQualifiedName());
                     if (caller.getFile() != null) {
-                        sb.append("  [").append(caller.getFile());
+                        sb.append("  [").append(relativePath(caller.getFile()));
                         if (caller.getStartPosition() != null) {
                             sb.append(":").append(caller.getStartPosition().line());
                         }
@@ -1534,7 +1684,218 @@ public class GausVibeServer {
                     + "qualified name, or query one of the candidates directly.");
                 return result;
             }
+            // last resort before null: a field NAMED like the question's
+            // tokens ("where is the separator pattern defined" -> V_SEP).
+            // Never when the question carries a literal the value route
+            // already failed on: "where is the number 8094 defined" is a
+            // value question, and serving NUMBER_* fields is a mis-route.
+            if (extractLiterals(question).isEmpty()) {
+                Map<String, Object> fieldLocation =
+                    fieldLocationQuery(question, extractIdentifiers(question));
+                if (fieldLocation != null) {
+                    return fieldLocation;
+                }
+            }
             return unmatched(question, null, "No class or method name found in the question");
+        }
+
+        /**
+         * Splits a field name into lowercase segments (camel humps and
+         * underscores): "V_SEP" -> ["v", "sep"], "snapshotInfo" ->
+         * ["snapshot", "info"].
+         */
+        public static List<String> fieldNameSegments(String name) {
+            List<String> segments = new ArrayList<>();
+            StringBuilder cur = new StringBuilder();
+            for (int i = 0; i < name.length(); i++) {
+                char ch = name.charAt(i);
+                if (ch == '_' || ch == '$') {
+                    if (cur.length() > 0) {
+                        segments.add(cur.toString().toLowerCase());
+                        cur.setLength(0);
+                    }
+                    continue;
+                }
+                // camel-case boundary: UPPER starts a new segment when it
+                // follows a lowercase letter ("snapshotInfo") or when it
+                // begins an UPPER-run that ends in lowercase ("parseURLValue")
+                if (!cur.isEmpty() && Character.isUpperCase(ch)) {
+                    boolean prevLower = Character.isLowerCase(name.charAt(i - 1));
+                    boolean nextLower = i + 1 < name.length()
+                        && Character.isLowerCase(name.charAt(i + 1));
+                    if (prevLower || nextLower) {
+                        segments.add(cur.toString().toLowerCase());
+                        cur.setLength(0);
+                    }
+                }
+                if (Character.isLetterOrDigit(ch)) {
+                    cur.append(Character.toLowerCase(ch));
+                } else if (cur.length() > 0) {
+                    segments.add(cur.toString().toLowerCase());
+                    cur.setLength(0);
+                }
+            }
+            if (cur.length() > 0) {
+                segments.add(cur.toString().toLowerCase());
+            }
+            return segments;
+        }
+
+        /**
+         * Finds fields whose name matches a question token by segment
+         * prefix (>= 3 chars): "separator" matches a field segment "sep",
+         * "pattern" matches "pattern". Serves "where is the separator
+         * pattern defined" without the agent knowing the field name
+         * (round-5 jackson Q5: both gv arms needed this route).
+         */
+        public static List<FieldNode> findFieldsByStem(List<String> candidates, GraphQueryEngine engine) {
+            List<String> stems = new ArrayList<>();
+            for (String candidate : candidates) {
+                if (candidate.indexOf('.') >= 0 || candidate.length() < 5) {
+                    // 5-char floor keeps function words like "into" from
+                    // matching every INT_* field (round-5 verification)
+                    continue;
+                }
+                String stem = candidate.toLowerCase();
+                for (String suffix : new String[]{"ation", "ion", "ing", "ed", "es", "s"}) {
+                    if (stem.endsWith(suffix) && stem.length() > suffix.length() + 2) {
+                        stem = stem.substring(0, stem.length() - suffix.length());
+                        break;
+                    }
+                }
+                if (stem.length() >= 6 && !stems.contains(stem)) {
+                    // 6-char stem floor: short generic stems ("write",
+                    // "number") drag in unrelated fields - the subject of a
+                    // field-location question is a specific term
+                    stems.add(stem);
+                }
+            }
+            if (stems.isEmpty()) {
+                return Collections.emptyList();
+            }
+            // rank: earlier question tokens are more central to the ask
+            // ("separator" in "where is the separator pattern" outranks the
+            // later "minor" of "major/minor/patch"); exact segment beats an
+            // abbreviation, which beats a prefix; constants beat instances
+            record Scored(FieldNode field, int score) {}
+            List<Scored> scored = new ArrayList<>();
+            for (FieldNode f : engine.getIndexes().getAllFields()) {
+                List<String> segments = fieldNameSegments(f.getName());
+                // bonus when the DECLARING CLASS also matches a question
+                // token: V_SEP in VersionUtil for the "version string" ask
+                int classBonus = 0;
+                if (f.getClassName() != null) {
+                    for (String stem : stems) {
+                        for (String cseg : fieldNameSegments(f.getClassName())) {
+                            if (cseg.length() >= 4
+                                && (cseg.equals(stem) || cseg.startsWith(stem)
+                                    || stem.startsWith(cseg) && stem.length() >= cseg.length() * 2)) {
+                                classBonus = 15;
+                                break;
+                            }
+                        }
+                        if (classBonus > 0) {
+                            break;
+                        }
+                    }
+                }
+                int best = Integer.MIN_VALUE;
+                for (int si = 0; si < stems.size(); si++) {
+                    if (si >= 3) {
+                        // only the question's first content tokens can drive
+                        // the match: they carry the subject ("where is
+                        // VISITEDTYPEVARIABLES declared" - a later "write"
+                        // token must not drag in numWrites/currentWrite;
+                        // round-5 verification, the r4-Q9 failure mode)
+                        break;
+                    }
+                    String stem = stems.get(si);
+                    int kindBonus = 0;
+                    boolean hit = false;
+                    for (String seg : segments) {
+                        if (seg.length() < 3) {
+                            continue;
+                        }
+                        if (seg.equals(stem)) {
+                            hit = true;
+                            kindBonus = 3;
+                            break;
+                        }
+                        // abbreviation: field segment "sep" abbreviated the
+                        // question's "separator" - require the stem to be
+                        // at least twice as long so "min" <- "minor" and
+                        // "int" <- "into" cannot fire
+                        if (stem.startsWith(seg) && stem.length() >= seg.length() * 2) {
+                            hit = true;
+                            kindBonus = 2;
+                            break;
+                        }
+                        // stem is a specific prefix of the segment
+                        if (seg.startsWith(stem) && stem.length() >= 4) {
+                            hit = true;
+                            kindBonus = 1;
+                            break;
+                        }
+                    }
+                    if (hit) {
+                        int score = (stems.size() - si) * 10 + kindBonus + classBonus
+                            + (f.isStatic() ? 2 : 0) + (f.isFinal() ? 1 : 0);
+                        best = Math.max(best, score);
+                    }
+                }
+                if (best != Integer.MIN_VALUE) {
+                    scored.add(new Scored(f, best));
+                }
+            }
+            scored.sort((a, b) -> Integer.compare(b.score(), a.score()));
+            List<FieldNode> matches = new ArrayList<>();
+            for (Scored s : scored) {
+                matches.add(s.field());
+                if (matches.size() >= 20) {
+                    break;
+                }
+            }
+            return matches;
+        }
+
+        /**
+         * Answers "where is the <thing> defined" by field-name search when
+         * no class or method resolved: lists the matching fields with their
+         * declaring class, type, initializer value (when indexed) and
+         * file:line. Returns null when no field matches.
+         */
+        private Map<String, Object> fieldLocationQuery(String question, List<String> candidates) {
+            List<FieldNode> fields = findFieldsByStem(candidates, queryEngine);
+            if (fields.isEmpty()) {
+                return null;
+            }
+            StringBuilder sb = new StringBuilder();
+            int total = 0;
+            sb.append("Fields matching the question (").append(fields.size()).append("):\n");
+            for (FieldNode f : fields) {
+                sb.append("  - ").append(f.getQualifiedName()).append(": ").append(f.getDataType());
+                String value = null;
+                for (Indexes.ValueOccurrence occ : queryEngine.getIndexes().getAllValues()) {
+                    if (occ.classFqn() != null && occ.classFqn().equals(f.getClassName())
+                        && occ.fieldName() != null && occ.fieldName().equals(f.getName())) {
+                        value = occ.value();
+                        break;
+                    }
+                }
+                if (value != null) {
+                    sb.append("  = \"").append(value).append("\"");
+                }
+                if (f.getFile() != null) {
+                    sb.append("  [").append(relativePath(f.getFile()));
+                    if (f.getStartPosition() != null) {
+                        sb.append(":").append(f.getStartPosition().line());
+                    }
+                    sb.append("]");
+                }
+                sb.append("\n");
+                total++;
+            }
+            return matched(question, "field-location", sb.toString(), total);
         }
 
         /**
@@ -1545,7 +1906,7 @@ public class GausVibeServer {
             sb.append("Method ").append(m.getQualifiedName()).append("\n");
             sb.append("  Signature: ").append(m.getSignature()).append("\n");
             if (m.getFile() != null) {
-                sb.append("  File: ").append(m.getFile());
+                sb.append("  File: ").append(relativePath(m.getFile()));
                 if (m.getStartPosition() != null) {
                     sb.append(":").append(m.getStartPosition().line());
                 }
@@ -1578,7 +1939,7 @@ public class GausVibeServer {
                 ClassNode c = classes.get(i);
                 sb.append("  - ").append(c.getQualifiedName());
                 if (c.getFile() != null) {
-                    sb.append("  [").append(c.getFile());
+                    sb.append("  [").append(relativePath(c.getFile()));
                     if (c.getStartPosition() != null) {
                         sb.append(":").append(c.getStartPosition().line());
                     }
@@ -1597,7 +1958,7 @@ public class GausVibeServer {
                 MethodNode m = methods.get(i);
                 sb.append("  - ").append(m.getSignature());
                 if (m.getFile() != null) {
-                    sb.append("  [").append(m.getFile());
+                    sb.append("  [").append(relativePath(m.getFile()));
                     if (m.getStartPosition() != null) {
                         sb.append(":").append(m.getStartPosition().line());
                     }
@@ -1616,7 +1977,7 @@ public class GausVibeServer {
                 FieldNode f = fields.get(i);
                 sb.append("  - ").append(f.getQualifiedName()).append(": ").append(f.getDataType());
                 if (f.getFile() != null) {
-                    sb.append("  [").append(f.getFile());
+                    sb.append("  [").append(relativePath(f.getFile()));
                     if (f.getStartPosition() != null) {
                         sb.append(":").append(f.getStartPosition().line());
                     }
@@ -1655,9 +2016,11 @@ public class GausVibeServer {
             }
             result.put("hint", "No graph query matched this question. " +
                 "Available: /classes, /classes/{fqn}, /classes/{fqn}/methods, " +
-                "/classes/{fqn}/subclasses, /classes/{fqn}/implementations, " +
-                "/methods, /packages, /search?q=NAME. " +
-                "Fall back to other tools (grep/read) for anything else.");
+                "/classes/{fqn}/fields, /classes/{fqn}/subclasses, " +
+                "/classes/{fqn}/implementations, /methods, /packages, /search?q=NAME. " +
+                "If a known class owns the symbol, ask 'what fields does <C> have' " +
+                "(or class_members with relation=fields); method parameters and " +
+                "local variables are not in the graph - grep them.");
             return result;
         }
     }
@@ -1857,8 +2220,26 @@ public class GausVibeServer {
             if (cls.isEmpty()) {
                 return responseJson(404, Map.of("error", "Class not found: " + fqn));
             }
-            
-            Map<String, Object> coverage = coverageFor(cls.get(), queryEngine);
+
+            // optional filters: ?link=call-graph (strict coverage semantics,
+            // excludes 2-hop/exception/name-convention links) and
+            // ?methods=true to opt into the per-test-method coverage map
+            // (compact by default - the map is the dominant payload)
+            Map<String, String> params = getQueryParams(exchange.getRequestURI().getQuery());
+            Set<String> linkTypes = null;
+            String link = params.get("link");
+            if (link != null && !link.isBlank()) {
+                linkTypes = new HashSet<>();
+                for (String part : link.split(",")) {
+                    String t = part.trim();
+                    if (!t.isEmpty()) {
+                        linkTypes.add(t);
+                    }
+                }
+            }
+            boolean includeMethods = "true".equalsIgnoreCase(params.get("methods"));
+            Map<String, Object> coverage =
+                coverageFor(cls.get(), queryEngine, linkTypes, includeMethods);
             return toJson(coverage);
         }
         
@@ -1866,6 +2247,17 @@ public class GausVibeServer {
          * Computes test coverage for a production class.
          */
         public static Map<String, Object> coverageFor(ClassNode prodClass, GraphQueryEngine engine) {
+            return coverageFor(prodClass, engine, null, true);
+        }
+
+        /**
+         * Computes test coverage, optionally filtered by link type and without
+         * the per-test-method coverage map (the map is the dominant payload:
+         * round-4/5 measured 8KB raw vs ~2KB without). linkTypes null = all
+         * link types; includeMethods false drops the per-test-method map.
+         */
+        public static Map<String, Object> coverageFor(ClassNode prodClass, GraphQueryEngine engine,
+                                                    Set<String> linkTypes, boolean includeMethods) {
             String prodName = prodClass.getName();
             String prodFqn = prodClass.getQualifiedName();
             Set<String> prodMethodIds = new HashSet<>();
@@ -1932,7 +2324,7 @@ public class GausVibeServer {
                 if (!coveringMethods.isEmpty() || nameMatch) {
                     Map<String, Object> testEntry = new LinkedHashMap<>();
                     testEntry.put("test_class", candidate.getQualifiedName());
-                    testEntry.put("file", candidate.getFile());
+                    testEntry.put("file", relativePath(candidate.getFile()));
                     String coverage;
                     if (anyDirect) {
                         coverage = "call-graph";
@@ -1943,8 +2335,11 @@ public class GausVibeServer {
                     } else {
                         coverage = "name-convention";
                     }
+                    if (linkTypes != null && !linkTypes.contains(coverage)) {
+                        continue;
+                    }
                     testEntry.put("coverage", coverage);
-                    if (!coveringMethods.isEmpty()) {
+                    if (includeMethods && !coveringMethods.isEmpty()) {
                         testEntry.put("test_methods", coveringMethods);
                     }
                     coveringTests.put(candidate.getQualifiedName(), testEntry);

@@ -17,6 +17,8 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 
 /**
@@ -291,27 +293,56 @@ public class GausVibeMcpServer {
                 + "Supported patterns ONLY: 'where is <X> defined' (class or method location), "
                 + "'what methods does <X> have', 'what fields does <X> have', "
                 + "'what implements <I>' / 'what subclasses <C>', 'who calls <M>' (method), 'who uses <F>' (field), "
-                + "'which tests verify <C>' (class), and 'where is <literal> defined' for "
+                + "'which tests verify <C>' (class), 'where is <literal> defined' for "
                 + "numbers or quoted string literals (value index, e.g. 'where is 9200 "
-                + "defined'). <X> must be an exact class or method "
+                + "defined'), and 'where is the <descriptor> pattern/separator/constant "
+                + "defined' which searches FIELD NAMES (e.g. 'separator pattern' finds "
+                + "V_SEP). <X> must be an exact class or method "
                 + "name from the indexed codebase. NOT free-form: no listing, enumeration, "
                 + "or partial-name search - use the search, classes, packages, or "
                 + "class_detail tools for those, and the callpath tool for execution flow. "
                 + "The response reports the matched query type; matched=null means GausVibe "
-                + "could not answer - then fall back to grep for that question.",
+                + "could not answer (the question's symbol may be a method parameter or "
+                + "local variable, which the graph does not model) - then fall back to "
+                + "grep for that question.",
             Map.of("question", Map.of("type", "string",
                     "description", "The question, e.g. 'who calls registerHandler' or 'which tests verify MetadataCreateIndexService'")),
             java.util.Set.of("question"),
             (args, http, base) -> httpGet(http, base + "/ask?q=" + urlEncode(getString(args, "question")))));
 
         put(new ToolDef("tests",
-            "List the tests covering a Java class, with method-level coverage (which test "
-                + "methods call which of the class's methods) and file paths. Strongest way "
-                + "to answer 'which tests verify/check X' or 'what happens if I change X'.",
+            "List the tests covering a Java class, with file paths and the coverage link "
+                + "type per test (call-graph, call-graph-2hop, exception-link, "
+                + "name-convention). Compact by default - the per-test-method coverage "
+                + "map is the dominant payload (round-4/5: 8KB+ per answer), so pass "
+                + "methods=true only when you need which test methods call which of "
+                + "the class's methods. Use link=call-graph to keep only strict "
+                + "coverage. Strongest way to answer 'which tests verify/check X' or "
+                + "'what happens if I change X'.",
             Map.of("class_fqn", Map.of("type", "string",
-                    "description", "Fully qualified class name, e.g. org.elasticsearch.cluster.metadata.MetadataCreateIndexService")),
+                    "description", "Fully qualified class name, e.g. org.elasticsearch.cluster.metadata.MetadataCreateIndexService"),
+                "methods", Map.of("type", "boolean",
+                    "description", "Include the per-test-method coverage map (default false)"),
+                "link", Map.of("type", "string",
+                    "description", "Filter by coverage type: call-graph | call-graph-2hop | exception-link | name-convention (comma-separated; default all)")),
             java.util.Set.of("class_fqn"),
-            (args, http, base) -> httpGet(http, base + "/tests/" + urlEncode(getString(args, "class_fqn")))));
+            (args, http, base) -> {
+                StringBuilder url = new StringBuilder(base + "/tests/")
+                    .append(urlEncode(getString(args, "class_fqn")));
+                List<String> params = new ArrayList<>();
+                if (args.has("methods") && !args.get("methods").isJsonNull()
+                        && args.get("methods").getAsBoolean()) {
+                    params.add("methods=true");
+                }
+                String link = getString(args, "link");
+                if (link != null && !link.isEmpty()) {
+                    params.add("link=" + urlEncode(link));
+                }
+                if (!params.isEmpty()) {
+                    url.append("?").append(String.join("&", params));
+                }
+                return httpGet(http, url.toString());
+            }));
 
         put(new ToolDef("callpath",
             "Find transitive call chains between two methods (how execution can get from A "
@@ -354,24 +385,36 @@ public class GausVibeMcpServer {
 
         put(new ToolDef("class_members",
             "List a class's members or relations by fully qualified name: its methods "
-                + "(default), its subclasses, or the implementations of an interface.",
+                + "(default, names only - compact), its fields, its subclasses, or the "
+                + "implementations of an interface. Set verbose=true for method "
+                + "signatures with line numbers.",
             Map.of(
                 "class_fqn", Map.of("type", "string", "description", "Fully qualified class or interface name"),
                 "relation", Map.of("type", "string",
-                    "description", "methods | subclasses | implementations (default: methods)")),
+                    "description", "methods | fields | subclasses | implementations (default: methods)"),
+                "verbose", Map.of("type", "boolean",
+                    "description", "For relation=methods: include signatures with lines (default false)")),
             java.util.Set.of("class_fqn"),
             (args, http, base) -> {
                 String relation = getString(args, "relation");
                 if (relation == null || relation.isEmpty()) {
                     relation = "methods";
                 }
-                if (!relation.equals("methods") && !relation.equals("subclasses")
+                if (!relation.equals("methods") && !relation.equals("fields")
+                        && !relation.equals("subclasses")
                         && !relation.equals("implementations")) {
                     throw new IllegalArgumentException(
-                        "relation must be methods, subclasses, or implementations, got: " + relation);
+                        "relation must be methods, fields, subclasses, or implementations, got: " + relation);
                 }
-                return httpGet(http, base + "/classes/" + urlEncode(getString(args, "class_fqn"))
-                    + "/" + relation);
+                StringBuilder url = new StringBuilder(base + "/classes/")
+                    .append(urlEncode(getString(args, "class_fqn")))
+                    .append("/").append(relation);
+                if (relation.equals("methods")
+                        && args.has("verbose") && !args.get("verbose").isJsonNull()
+                        && args.get("verbose").getAsBoolean()) {
+                    url.append("?verbose=true");
+                }
+                return httpGet(http, url.toString());
             }));
 
         put(new ToolDef("classes",
