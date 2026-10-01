@@ -398,13 +398,13 @@ public class ASTSourceSerializer {
             case "long": return PrimitiveType.longType();
             case "float": return PrimitiveType.floatType();
             case "double": return PrimitiveType.doubleType();
-            case "String": return new ClassOrInterfaceType("String");
+            case "String": return StaticJavaParser.parseClassOrInterfaceType("String");
             default:
                 // Handle array types
                 if (typeName.endsWith("[]")) {
                     return new ArrayType(parseType(typeName.substring(0, typeName.length() - 2)));
                 }
-                return new ClassOrInterfaceType(typeName);
+                return StaticJavaParser.parseClassOrInterfaceType(typeName);
         }
     }
     
@@ -413,9 +413,9 @@ public class ASTSourceSerializer {
      */
     private ReferenceType parseExceptionType(String typeName) {
         if (typeName == null || typeName.isEmpty()) {
-            return new ClassOrInterfaceType("Throwable");
+            return StaticJavaParser.parseClassOrInterfaceType("Throwable");
         }
-        return new ClassOrInterfaceType(typeName);
+        return StaticJavaParser.parseClassOrInterfaceType(typeName);
     }
     
     /**
