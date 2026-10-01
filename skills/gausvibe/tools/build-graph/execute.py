@@ -95,6 +95,11 @@ class GraphBuilder:
         # Look for built JAR
         target_dir = SKILL_ROOT / "target"
         
+        # Shaded JAR with all dependencies (from mvn package)
+        shaded_jar = target_dir / "gausvibe-1.0.0-all.jar"
+        if shaded_jar.exists():
+            return str(shaded_jar)
+
         # Pre-built JAR (from mvn package)
         jar_path = target_dir / "gausvibe-1.0.0.jar"
         if jar_path.exists():

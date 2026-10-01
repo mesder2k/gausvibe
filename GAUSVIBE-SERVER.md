@@ -4,26 +4,23 @@
 
 ## Quick Start
 
-### 1. Compile
+### 1. Build the shaded JAR
 ```bash
-mvn clean compile
+mvn clean package
 ```
+Produces `target/gausvibe-1.0.0-all.jar` (all dependencies included).
+To install it as the Vibe runtime artifact: `./scripts/install-artifact.sh`.
 
 ### 2. Start the Server
 
 ```bash
-# Get classpath
-CP=$(mvn -q dependency:build-classpath -Dmdep.outputFile=/dev/stdout)
-
 # Start server with project to index
-java -cp "target/classes:$CP" \
-  dk.gausdalfind.server.GausVibeServer \
+java -jar target/gausvibe-1.0.0-all.jar server \
   --project ../bakeoff1 \
   --port 8080
 
 # Or for GausVibe itself
-java -cp "target/classes:$CP" \
-  dk.gausdalfind.server.GausVibeServer \
+java -jar target/gausvibe-1.0.0-all.jar server \
   --project . \
   --port 8080
 ```
@@ -69,11 +66,10 @@ curl http://localhost:8080/graph/stats
 ### Start server with different projects
 ```bash
 # Calculator example on port 8080
-CP=$(mvn -q dependency:build-classpath -Dmdep.outputFile=/dev/stdout)
-java -cp "target/classes:$CP" dk.gausdalfind.server.GausVibeServer --project ../bakeoff1 --port 8080 &
+java -jar target/gausvibe-1.0.0-all.jar server --project ../bakeoff1 --port 8080 &
 
 # GausVibe itself on port 8081
-java -cp "target/classes:$CP" dk.gausdalfind.server.GausVibeServer --project . --port 8081 &
+java -jar target/gausvibe-1.0.0-all.jar server --project . --port 8081 &
 ```
 
 ### Query examples

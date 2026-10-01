@@ -18,12 +18,15 @@ Vibe session --MCP stdio--> GausVibeMcpServer --HTTP--> GausVibeServer daemon (o
 
 ## Running the daemon
 
+The runtime artifact is the shaded jar installed at
+`~/.vibe/plugins/gausvibe/gausvibe.jar` (rebuild + reinstall with
+`./scripts/install-artifact.sh` in the gausvibe repo). The git repo is not
+needed at run time.
+
 Fast (gausvibe repo itself, ~5s):
 
 ```bash
-CP=$(jq -r '.mcpServers.gausvibe.args[1]' ~/.vibe/plugins/gausvibe/mcp.json)
-nohup java -cp "$CP" \
-  dk.gausdalfind.server.GausVibeServer \
+nohup java -jar ~/.vibe/plugins/gausvibe/gausvibe.jar server \
   --project /Users/magnusfind/Documents/find-shadow-model/gausvibe \
   --port 8094 \
   > /tmp/gausvibe-daemon.log 2>&1 &
@@ -32,9 +35,7 @@ nohup java -cp "$CP" \
 Elasticsearch `server` module (~20 min build, ~350k nodes incl. tests):
 
 ```bash
-CP=$(jq -r '.mcpServers.gausvibe.args[1]' ~/.vibe/plugins/gausvibe/mcp.json)
-nohup java -Xmx6g -cp "$CP" \
-  dk.gausdalfind.server.GausVibeServer \
+nohup java -Xmx6g -jar ~/.vibe/plugins/gausvibe/gausvibe.jar server \
   --project /Users/magnusfind/Documents/find-shadow-model/elasticsearch/server \
   --port 8094 \
   > /tmp/gausvibe-daemon.log 2>&1 &
