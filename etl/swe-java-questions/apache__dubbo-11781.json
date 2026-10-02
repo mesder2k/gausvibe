@@ -1,0 +1,41 @@
+{
+  "task_id": "apache__dubbo-11781",
+  "repo": "apache/dubbo",
+  "base_commit": "16c61c53c6caf8ac5710f85ce7ddb2592da52dc3",
+  "source": "SWE-bench-java-verified (HF Daoguang/Multi-SWE-bench, swe-bench-java-verified.json)",
+  "issue_summary": "Service auth fails when the registry URL has empty parameters (username=&password=&namespace=): dubbo parses an empty parameter value as the parameter NAME, so auth credentials come out wrong. Issue names no file or class.",
+  "gold_patch_file": "dubbo-common/src/main/java/org/apache/dubbo/common/URLStrParser.java",
+  "spot_check": "All five ground truths grep-verified against the base-commit clone (bakeoff-repos/dubbo @ 16c61c53, checked out for this set - line numbers differ from the 10638 base).",
+  "questions": [
+    {
+      "q": "Where does dubbo parse a raw URL string into its parameters - the code that splits name=value pairs and decodes them?",
+      "route_hint": "ask",
+      "ground_truth_strict": "org.apache.dubbo.common.URLStrParser (dubbo-common/src/main/java/org/apache/dubbo/common/URLStrParser.java, final class at :31): public entry points parseEncodedStr (:211), parseDecodedStr (:50), parseParams (:199); the empty-value handling that the issue triggers lives in the private addParam (:267) - 'if (valueStart >= valueEnd) value = name;' at ~:278 and ~:291 (encoded and decoded branches), which is the bug (empty value becomes the parameter name).",
+      "ground_truth_lenient": "URLStrParser"
+    },
+    {
+      "q": "Who calls URLStrParser to turn raw URL strings into structured URLs, and from which method?",
+      "route_hint": "callpath",
+      "ground_truth_strict": "Two main-source callers: org.apache.dubbo.common.URL.valueOf(String, boolean) (dubbo-common/src/main/java/org/apache/dubbo/common/URL.java:250-255; dispatches to parseEncodedStr at :252 and parseDecodedStr at :254) and org.apache.dubbo.common.url.component.URLParam (:932, calls parseParams).",
+      "ground_truth_lenient": "URL.valueOf (or URLParam)"
+    },
+    {
+      "q": "Where is DECODE_TEMP_BUF declared and which methods use it?",
+      "route_hint": "field-usage",
+      "ground_truth_strict": "Declared private static final ThreadLocal<TempBuf> DECODE_TEMP_BUF at URLStrParser.java:38 (ThreadLocal.withInitial(() -> new TempBuf(1024))); read via DECODE_TEMP_BUF.get() at :69 (parseDecodedParams) and :221 (parseEncodedStr) plus :231 (parseEncodedParams) - all within URLStrParser.",
+      "ground_truth_lenient": "URLStrParser DECODE_TEMP_BUF"
+    },
+    {
+      "q": "Which tests cover URL string parsing and URL parameter handling?",
+      "route_hint": "tests",
+      "ground_truth_strict": "dubbo-common/src/test/java/org/apache/dubbo/common/URLStrParserTest.java and dubbo-common/src/test/java/org/apache/dubbo/common/URLTest.java - exactly the two files the gold test patch extends; also URLBuilderTest.java in the same package for builder-based URL construction.",
+      "ground_truth_lenient": "URLStrParserTest or URLTest"
+    },
+    {
+      "q": "Where is the encoded URL marker string \"%3F\" defined?",
+      "route_hint": "literal",
+      "ground_truth_strict": "URLStrParser.ENCODED_QUESTION_MARK = \"%3F\" at dubbo-common/src/main/java/org/apache/dubbo/common/URLStrParser.java:32 (public static final String; siblings ENCODED_TIMESTAMP_KEY :33, ENCODED_PID_KEY :34, ENCODED_AND_MARK = \"%26\" :35). Expected to be servable by the value-location route.",
+      "ground_truth_lenient": "URLStrParser"
+    }
+  ]
+}
