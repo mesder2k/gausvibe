@@ -89,7 +89,7 @@ public class NodeFactory {
             return null;
         }
         
-        String name = pkgDecl.getName().toString();
+        String name = pkgDecl.getNameAsString();
         Path file = context.getCurrentFile();
         
         Position startPos = toPosition(pkgDecl.getBegin().orElse(null));
@@ -117,7 +117,7 @@ public class NodeFactory {
             return null;
         }
         
-        String name = classDecl.getName().toString();
+        String name = classDecl.getNameAsString();
         String qualifiedName = classDecl.getFullyQualifiedName().orElse(name);
         
         // Handle nested classes
@@ -184,7 +184,7 @@ public class NodeFactory {
             return null;
         }
         
-        String name = methodDecl.getName().toString();
+        String name = methodDecl.getNameAsString();
         String returnType = methodDecl.getType().toString();
         
         // Build qualified name
@@ -221,7 +221,7 @@ public class NodeFactory {
         
         // Check if this is a constructor (name matches class name)
         boolean isConstructor = context.getCurrentClass() != null && 
-            methodDecl.getName().toString().equals(
+            methodDecl.getNameAsString().equals(
                 context.getCurrentClass().substring(context.getCurrentClass().lastIndexOf('.') + 1)
             );
         boolean isStatic = modifiers.contains("static");
@@ -266,7 +266,7 @@ public class NodeFactory {
             return null;
         }
         
-        String name = ctorDecl.getName().toString();
+        String name = ctorDecl.getNameAsString();
         
         // Build qualified name
         String qualifiedName;
@@ -337,7 +337,7 @@ public class NodeFactory {
         
         // FieldDeclaration can have multiple variables
         for (VariableDeclarator var : fieldDecl.getVariables()) {
-            String name = var.getName().toString();
+            String name = var.getNameAsString();
             String type = fieldDecl.getElementType().toString();
             
             // Build qualified name
@@ -390,7 +390,7 @@ public class NodeFactory {
             return null;
         }
         
-        String name = param.getName().toString();
+        String name = param.getNameAsString();
         String type = param.getType().toString();
         
         // Build qualified name
@@ -439,7 +439,7 @@ public class NodeFactory {
             return null;
         }
         
-        String name = varDecl.getName().toString();
+        String name = varDecl.getNameAsString();
         String type = ""; // Type would come from parent declaration
         
         // Try to get type from parent
