@@ -337,7 +337,7 @@ public class GausVibeServer {
             endpoints.put("POST /feedback", "Rate an /ask answer (helpful, wrong, incomplete, too-big, other)");
             endpoints.put("POST /edited", "Report a file edit; GausVibe reparses just that file and updates the graph");
             endpoints.put("GET /changes", "Recent file updates reported via POST /edited");
-            endpoints.put("GET /tests/{fqn}", "Tests covering a class (by name convention and call graph; ?methods=false drops the per-test-method coverage map, ?link=call-graph filters coverage semantics)");
+            endpoints.put("GET /tests/{fqn}", "Tests covering a class (by name convention and call graph; ?methods=true adds the per-test-method coverage map, ?link=call-graph filters coverage semantics, ?limit=N bounds the payload)");
             endpoints.put("GET /callpath?from=A&to=B", "Transitive call chains between two methods");
             endpoints.put("POST /refresh", "Full background rebuild; old graph serves until the swap");
             info.put("endpoints", endpoints);
@@ -1361,6 +1361,7 @@ public class GausVibeServer {
             
             StringBuilder sb = new StringBuilder();
             int total = 0;
+            int shown = 0;
             // per-test-method coverage is the bulk of the answer bytes
             // (round-4/5: 8KB raw vs ~2KB without) - include only on request
             boolean includeMethods = question.toLowerCase().contains("method");
@@ -1376,30 +1377,44 @@ public class GausVibeServer {
                 }
                 for (Object t : tests) {
                     if (t instanceof Map) {
-                        Map<?, ?> tm = (Map<?, ?>) t;
-                        sb.append("  - ").append(tm.get("test_class"));
-                        Object file = tm.get("file");
-                        if (file != null) {
-                            sb.append("  [").append(relativePath(file.toString())).append("]");
-                        }
-                        Object cov = tm.get("coverage");
-                        if (cov != null) {
-                            sb.append("  (").append(cov).append(")");
-                        }
-                        sb.append("\n");
-                        if (includeMethods) {
-                            Object methods = tm.get("test_methods");
-                            if (methods instanceof Map && !((Map<?, ?>) methods).isEmpty()) {
-                                for (var e : ((Map<?, ?>) methods).entrySet()) {
-                                    sb.append("      ").append(e.getKey()).append("\n");
+                        total++;
+                        // cap the listed tests like every other answer:
+                        // big suites listed 314 classes / 59KB (dubbo
+                        // round-6 spot check). The header count and the
+                        // result count stay the true totals.
+                        if (shown < MAX_LINES) {
+                            Map<?, ?> tm = (Map<?, ?>) t;
+                            sb.append("  - ").append(tm.get("test_class"));
+                            Object file = tm.get("file");
+                            if (file != null) {
+                                sb.append("  [").append(relativePath(file.toString())).append("]");
+                            }
+                            Object cov = tm.get("coverage");
+                            if (cov != null) {
+                                sb.append("  (").append(cov).append(")");
+                            }
+                            sb.append("\n");
+                            if (includeMethods) {
+                                Object methods = tm.get("test_methods");
+                                if (methods instanceof Map && !((Map<?, ?>) methods).isEmpty()) {
+                                    for (var e : ((Map<?, ?>) methods).entrySet()) {
+                                        sb.append("      ").append(e.getKey()).append("\n");
+                                    }
                                 }
                             }
+                            shown++;
                         }
                         total++;
                     }
                 }
+                if (tests.size() > shown) {
+                    sb.append("  ... showing ").append(shown).append(" of ")
+                      .append(tests.size()).append(" tests - narrow with the ")
+                      .append("link=call-graph filter (strict coverage) or use ")
+                      .append("/tests/{fqn}?methods=true for the full map\n");
+                }
             }
-            
+
             return matched(question, "tests", sb.toString(), total);
         }
         
@@ -2251,6 +2266,21 @@ public class GausVibeServer {
             boolean includeMethods = "true".equalsIgnoreCase(params.get("methods"));
             Map<String, Object> coverage =
                 coverageFor(cls.get(), queryEngine, linkTypes, includeMethods);
+            // ?limit=N: bound the raw payload for big suites (dubbo: 314
+            // covering classes = ~60KB). test_count stays the true total.
+            String limitRaw = params.get("limit");
+            if (limitRaw != null && !limitRaw.isBlank()) {
+                try {
+                    int limit = Math.max(1, Integer.parseInt(limitRaw.trim()));
+                    List<?> tests = (List<?>) coverage.get("tests");
+                    if (tests != null && tests.size() > limit) {
+                        coverage.put("tests", new ArrayList<>(tests.subList(0, limit)));
+                        coverage.put("truncated", true);
+                    }
+                } catch (NumberFormatException ignored) {
+                    // invalid limit: return unbounded
+                }
+            }
             return toJson(coverage);
         }
         
@@ -2424,6 +2454,9 @@ public class GausVibeServer {
      * Specs are "fqn.method" or a bare method name; ambiguous specs resolve
      * to up to 3 candidate methods each. Returns at most 10 paths.
      */
+    /** Max call chains rendered per callpath answer. */
+    private static final int MAX_CALL_PATHS = 10;
+
     public static Map<String, Object> callPaths(String fromSpec, String toSpec, int maxDepth, Graph targetGraph) {
         GraphQueryEngine engine = new GraphQueryEngine(targetGraph);
         CallGraphIndex callIndex = targetGraph.getIndexes().getCallGraphIndex();
@@ -2447,12 +2480,20 @@ public class GausVibeServer {
         }
         
         List<List<String>> allPaths = new ArrayList<>();
+        // cap honored per path, not per batch: a single findCallPaths call
+        // could return hundreds of chains and the old addAll-then-check
+        // let 260 through into a list meant to hold 10 (round-5b: ~40KB
+        // answer from one callpath question)
+        outer:
         for (String fromId : fromIds) {
             for (String toId : toIds) {
-                allPaths.addAll(callIndex.findCallPaths(fromId, toId, maxDepth));
-                if (allPaths.size() >= 10) break;
+                for (List<String> path : callIndex.findCallPaths(fromId, toId, maxDepth)) {
+                    if (allPaths.size() >= MAX_CALL_PATHS) {
+                        break outer;
+                    }
+                    allPaths.add(path);
+                }
             }
-            if (allPaths.size() >= 10) break;
         }
         
         List<String> rendered = new ArrayList<>();
