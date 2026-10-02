@@ -1,0 +1,45 @@
+{
+  "task_id": "apache__dubbo-10638",
+  "repo": "apache/dubbo",
+  "base_commit": "43d48bd6caf95f61f4e879a5be8b5560a55daee9",
+  "source": "SWE-bench-java-verified (HF Daoguang/Multi-SWE-bench, swe-bench-java-verified.json)",
+  "issue_summary": "Generalized call does not support serialization/deserialization of LocalTime, LocalDate and LocalDateTime (e.g. LocalTime strings shorter than a full ISO date-time fail to parse; java.time POJOs are not generalized). Issue names no file or class.",
+  "gold_patch_files": [
+    "dubbo-common/src/main/java/org/apache/dubbo/common/utils/CompatibleTypeUtils.java",
+    "dubbo-common/src/main/java/org/apache/dubbo/common/utils/PojoUtils.java"
+  ],
+  "spot_check": "All five ground truths grep-verified against the base-commit clone (bakeoff-repos/dubbo @ 43d48bd6, checked out for this set). Selected for round 6 because dubbo is the large-repo discriminating cell (4,387 files) and the issue is lookup-non-trivial.",
+  "questions": [
+    {
+      "q": "Where does dubbo's generalized-call machinery convert a value to the target compatible type during deserialization - the per-type switch that handles dates and times?",
+      "route_hint": "ask",
+      "ground_truth_strict": "org.apache.dubbo.common.utils.CompatibleTypeUtils.compatibleTypeConvert(Object, Class) - dubbo-common/src/main/java/org/apache/dubbo/common/utils/CompatibleTypeUtils.java:52; the java.time branches (LocalDate/LocalDateTime/LocalTime) are at :127-131, with the LocalTime branch parsing via LocalDateTime.parse(string).toLocalTime() at :131 (the bug: short LocalTime strings like '10:15:30' cannot parse as LocalDateTime).",
+      "ground_truth_lenient": "CompatibleTypeUtils.compatibleTypeConvert"
+    },
+    {
+      "q": "Who calls compatibleTypeConvert, and from which method?",
+      "route_hint": "callpath",
+      "ground_truth_strict": "CORRECTED after round 6 (original GT missed a production caller): two production callers - PojoUtils.realize (call site dubbo-common/src/main/java/org/apache/dubbo/common/utils/PojoUtils.java:333, method declared :222; the graph reports the method-start line 319) and CompatibleFilter.onResponse (dubbo-rpc/dubbo-rpc-api/src/main/java/org/apache/dubbo/rpc/filter/CompatibleFilter.java:73, the non-POJO branch of the generalized-call result filter), plus the direct test caller CompatibleTypeUtilsTest.",
+      "ground_truth_lenient": "PojoUtils realize (+ CompatibleFilter)",
+      "round5_note": "Same-class-call trap as gson Q2: derive caller ground truth with the graph or a bare-name grep, not 'Class.method(' patterns"
+    },
+    {
+      "q": "Where is DATE_FORMAT declared and which methods use it?",
+      "route_hint": "field-usage",
+      "ground_truth_strict": "Declared private static final String DATE_FORMAT = \"yyyy-MM-dd HH:mm:ss\" at CompatibleTypeUtils.java:35; used only inside compatibleTypeConvert - at :99 (new SimpleDateFormat(DATE_FORMAT).parse(string), the Date branch) and :112 (the exception message of that parse). NOTE: the graph's field-usage index records one usage line per method, so a strict both-lines answer is not servable by design; score the method set (compatibleTypeConvert) plus the declaration.",
+      "ground_truth_lenient": "CompatibleTypeUtils DATE_FORMAT"
+    },
+    {
+      "q": "Which existing tests cover the compatible-type conversion and POJO generalization utils?",
+      "route_hint": "tests",
+      "ground_truth_strict": "dubbo-common/src/test/java/org/apache/dubbo/common/utils/CompatibleTypeUtilsTest.java (testCompatibleTypeConvert) and dubbo-common/src/test/java/org/apache/dubbo/common/utils/PojoUtilsTest.java (test_pojo, test_primitive, test_Map_List_pojo, testGeneralizeEnumArray and siblings). The gold test patch extends PojoUtilsTest.",
+      "ground_truth_lenient": "either CompatibleTypeUtilsTest or PojoUtilsTest"
+    },
+    {
+      "q": "Where is the date-time pattern string \"yyyy-MM-dd HH:mm:ss\" defined?",
+      "route_hint": "literal",
+      "ground_truth_strict": "The only main-source occurrence of the literal is CompatibleTypeUtils.DATE_FORMAT at dubbo-common/src/main/java/org/apache/dubbo/common/utils/CompatibleTypeUtils.java:35 (private static final String field initializer). Expected to be servable by the value-location route (string literal in a field initializer).",
+      "ground_truth_lenient": "CompatibleTypeUtils"
+    }
+  ]
+}

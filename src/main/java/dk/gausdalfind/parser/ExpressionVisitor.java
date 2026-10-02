@@ -59,7 +59,7 @@ public class ExpressionVisitor extends VoidVisitorAdapter<VisitorContext> {
         if (callerMethodId == null || callerMethodId.isBlank()) {
             return; // call outside any method body (field initializer, static block)
         }
-        String methodName = methodCall.getName().toString();
+        String methodName = methodCall.getNameAsString();
         String receiverType = resolveReceiverType(methodCall.getScope().orElse(null), context);
         context.recordCall(new VisitorContext.CallRecord(
             callerMethodId, context.getCurrentClass(), receiverType,
@@ -75,7 +75,7 @@ public class ExpressionVisitor extends VoidVisitorAdapter<VisitorContext> {
 
         String callerMethodId = context.getCurrentMethodId();
         if (callerMethodId != null && !callerMethodId.isBlank()) {
-            String typeName = objCreation.getType().getName().toString();
+            String typeName = objCreation.getType().getNameAsString();
             String simpleName = typeName.contains(".")
                 ? typeName.substring(typeName.lastIndexOf('.') + 1) : typeName;
             context.recordCall(new VisitorContext.CallRecord(
@@ -119,7 +119,7 @@ public class ExpressionVisitor extends VoidVisitorAdapter<VisitorContext> {
     @Override
     public void visit(com.github.javaparser.ast.expr.NameExpr nameExpr, VisitorContext context) {
         super.visit(nameExpr, context);
-        recordFieldUsageIfField(nameExpr.getName().toString(), context,
+        recordFieldUsageIfField(nameExpr.getNameAsString(), context,
             nameExpr.getBegin().map(p -> p.line).orElse(0));
     }
 
@@ -131,17 +131,17 @@ public class ExpressionVisitor extends VoidVisitorAdapter<VisitorContext> {
         super.visit(fieldAccess, context);
         int line = fieldAccess.getBegin().map(p -> p.line).orElse(0);
         if (fieldAccess.getScope() instanceof com.github.javaparser.ast.expr.ThisExpr) {
-            recordFieldUsageIfField(fieldAccess.getName().toString(), context, line);
+            recordFieldUsageIfField(fieldAccess.getNameAsString(), context, line);
             return;
         }
         // ClassName.fieldName: static access; the scope class may be a
         // local symbol, same-package, or imported
         if (fieldAccess.getScope() instanceof com.github.javaparser.ast.expr.NameExpr) {
             String scopeName = ((com.github.javaparser.ast.expr.NameExpr) fieldAccess.getScope())
-                .getName().toString();
+                .getNameAsString();
             String clsFqn = resolveClassName(scopeName, context);
             if (clsFqn != null) {
-                String fieldName = fieldAccess.getName().toString();
+                String fieldName = fieldAccess.getNameAsString();
                 for (dk.gausdalfind.model.declaration.FieldNode f
                         : graph.getIndexes().getFieldsByName(fieldName)) {
                     if (clsFqn.equals(f.getClassName())) {
@@ -209,18 +209,27 @@ public class ExpressionVisitor extends VoidVisitorAdapter<VisitorContext> {
             return context.getCurrentClass();
         }
         if (scope instanceof NameExpr) {
-            String name = ((NameExpr) scope).getName().toString();
+            String name = ((NameExpr) scope).getNameAsString();
             String type = symbolType(lookupSymbol(name, context));
             if (type != null) return type;
             // no local symbol: could be a class name (static call)
             return name;
         }
         if (scope instanceof FieldAccessExpr) {
-            String name = ((FieldAccessExpr) scope).getName().toString();
+            String name = ((FieldAccessExpr) scope).getNameAsString();
             return symbolType(lookupSymbol(name, context));
         }
         if (scope instanceof SuperExpr) {
             return null;
+        }
+        if (scope instanceof ObjectCreationExpr) {
+            // `new Foo().bar()`: the receiver is the freshly constructed
+            // Foo. Without this the record carried receiverType=null and
+            // resolution fell back to a global unique-name match - which
+            // silently fails whenever several classes share the method
+            // name (round-6 repro: Entry -> 3x InterN.run -> Target
+            // resolved 3/11 call sites). Very common Java shape.
+            return ((ObjectCreationExpr) scope).getType().getNameAsString();
         }
         // chained calls, casts, etc.: unresolved
         return null;

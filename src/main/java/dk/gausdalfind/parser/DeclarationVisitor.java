@@ -59,7 +59,7 @@ public class DeclarationVisitor extends VoidVisitorAdapter<VisitorContext> {
         
         // Process imports
         for (ImportDeclaration importDecl : cu.getImports()) {
-            context.addImport(importDecl.getName().toString());
+            context.addImport(importDecl.getNameAsString());
         }
         
         // Process types (classes, interfaces, enums)

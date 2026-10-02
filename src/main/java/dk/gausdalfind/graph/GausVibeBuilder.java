@@ -329,22 +329,22 @@ public class GausVibeBuilder {
             // Process package and imports
             cu.getPackageDeclaration().ifPresent(pkg -> {
                 PackageNode pkgNode = new PackageNode(
-                    pkg.getName().toString(),
+                    pkg.getNameAsString(),
                     file,
                     Position.fromJavaParser(pkg.getBegin().orElse(null)),
                     Position.fromJavaParser(pkg.getEnd().orElse(null))
                 );
                 graph.addNode(pkgNode);
-                context.setCurrentPackage(pkg.getName().toString());
+                context.setCurrentPackage(pkg.getNameAsString());
                 
                 // Register in symbol table
                 symbolTable.register(pkgNode);
-                symbolTable.registerPackage(file, pkg.getName().toString());
+                symbolTable.registerPackage(file, pkg.getNameAsString());
             });
             
             // Process imports
             for (var importDecl : cu.getImports()) {
-                context.addImport(importDecl.getName().toString());
+                context.addImport(importDecl.getNameAsString());
             }
             symbolTable.registerImports(file, context.getImports());
             
@@ -549,7 +549,7 @@ public class GausVibeBuilder {
                 }
                 int line = lit.getBegin().map(p -> p.line).orElse(0);
                 graph.getIndexes().indexValue(new Indexes.ValueOccurrence(
-                    value, owner.getQualifiedName(), var.getName().toString(),
+                    value, owner.getQualifiedName(), var.getNameAsString(),
                     context.getCurrentFile(), line));
             }
         });
@@ -569,7 +569,7 @@ public class GausVibeBuilder {
             String name = null;
             com.github.javaparser.ast.expr.Expression e = t.getExpression();
             if (e instanceof com.github.javaparser.ast.expr.ObjectCreationExpr) {
-                name = ((com.github.javaparser.ast.expr.ObjectCreationExpr) e).getType().getName().toString();
+                name = ((com.github.javaparser.ast.expr.ObjectCreationExpr) e).getType().getNameAsString();
             }
             if (name != null) {
                 int tLine = t.getBegin().map(p -> p.line).orElse(line);
@@ -649,7 +649,7 @@ public class GausVibeBuilder {
      * processed as regular members.
      */
     private void processRecord(com.github.javaparser.ast.body.RecordDeclaration recordDecl, VisitorContext context) {
-        String name = recordDecl.getName().toString();
+        String name = recordDecl.getNameAsString();
         String qualifiedName = context.getCurrentPackage() != null && !context.getCurrentPackage().isBlank()
             ? context.getCurrentPackage() + "." + name : name;
         // Nested records use the enclosing class prefix
@@ -693,7 +693,7 @@ public class GausVibeBuilder {
         NodeFactory nodeFactory = new NodeFactory(graph, context);
         
         // Create a class node for the enum
-        String name = enumDecl.getName().toString();
+        String name = enumDecl.getNameAsString();
         String qualifiedName = context.getCurrentPackage() != null ?
             context.getCurrentPackage() + "." + name : name;
         
@@ -714,7 +714,7 @@ public class GausVibeBuilder {
         // Process enum constants
         for (var constant : enumDecl.getEntries()) {
             // Each enum constant is like a static field
-            String constName = constant.getName().toString();
+            String constName = constant.getNameAsString();
             String constFqn = qualifiedName + "." + constName;
             
             FieldNode constNode = new FieldNode(

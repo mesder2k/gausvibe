@@ -279,10 +279,17 @@ public class GausVibeServer {
             exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
             // exactly one sendResponseHeaders: the old 500 path sent 500 AND
             // fell through to a second send, throwing IllegalStateException
-            // and converting every handler error into a silent empty reply
-            exchange.sendResponseHeaders(status, response.length());
+            // and converting every handler error into a silent empty reply.
+            // Content-Length must be the UTF-8 BYTE count, not the char
+            // count: dubbo round-6 spot check - an answer containing one
+            // 71-char/79-byte value (a zh-cn doc URL) overran the declared
+            // length by 8 bytes and the connection was killed after the
+            // answer had already been computed and logged ("empty reply",
+            // nothing in the log). Any non-ASCII answer hits this.
+            byte[] body = response.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(status, body.length);
             try (OutputStream os = exchange.getResponseBody()) {
-                os.write(response.getBytes(StandardCharsets.UTF_8));
+                os.write(body);
             }
         }
         
@@ -969,12 +976,12 @@ public class GausVibeServer {
                 return responseJson(400, Map.of("error", "Missing 'q' parameter"));
             }
 
-            String question;
-            try {
-                question = java.net.URLDecoder.decode(raw, StandardCharsets.UTF_8);
-            } catch (IllegalArgumentException e) {
-                return responseJson(400, Map.of("error", "Malformed query encoding"));
-            }
+            // The JDK's HttpServer (19+) already percent-DECODES
+            // getRequestURI().getQuery() once - an explicit URLDecoder
+            // here decoded a second time, turning a literal "%3F" in a
+            // question into "?" (dubbo round-6 spot check). Only '+'
+            // still needs decoding to a space.
+            String question = raw.replace('+', ' ');
 
             Map<String, Object> result = answerQuestion(question);
             
@@ -1612,6 +1619,13 @@ public class GausVibeServer {
             for (String c : candidates) {
                 List<FieldNode> fields = queryEngine.getIndexes().getFieldsByName(c);
                 if (fields.isEmpty()) {
+                    continue;
+                }
+                // a candidate that also names a CLASS is a class reference,
+                // not a field: 'who calls URLStrParser to turn raw URL
+                // strings...' must not answer usages of a test field that
+                // happens to be named URL (dubbo round-6 spot check)
+                if (!queryEngine.findClassesByName(c).isEmpty()) {
                     continue;
                 }
                 StringBuilder sb = new StringBuilder();
