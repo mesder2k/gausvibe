@@ -16,7 +16,7 @@
     {
       "q": "Who calls URLStrParser to turn raw URL strings into structured URLs, and from which method?",
       "route_hint": "callpath",
-      "ground_truth_strict": "Two main-source callers: org.apache.dubbo.common.URL.valueOf(String, boolean) (dubbo-common/src/main/java/org/apache/dubbo/common/URL.java:250-255; dispatches to parseEncodedStr at :252 and parseDecodedStr at :254) and org.apache.dubbo.common.url.component.URLParam (:932, calls parseParams).",
+      "ground_truth_strict": "CORRECTED after round 6 (original GT missed a caller): URL.valueOf(String, boolean) (dubbo-common/src/main/java/org/apache/dubbo/common/URL.java:250-255, dispatches parseEncodedStr/parseDecodedStr), URLParam.parse (dubbo-common/src/main/java/org/apache/dubbo/common/url/component/URLParam.java:932, calls parseParams), and CacheableFailbackRegistry (dubbo-registry/dubbo-registry-api/.../CacheableFailbackRegistry.java:263 parseRawURLToArrays, :349 parseEncodedStr).",
       "ground_truth_lenient": "URL.valueOf (or URLParam)"
     },
     {

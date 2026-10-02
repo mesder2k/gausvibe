@@ -4,7 +4,10 @@
   "base_commit": "43d48bd6caf95f61f4e879a5be8b5560a55daee9",
   "source": "SWE-bench-java-verified (HF Daoguang/Multi-SWE-bench, swe-bench-java-verified.json)",
   "issue_summary": "Generalized call does not support serialization/deserialization of LocalTime, LocalDate and LocalDateTime (e.g. LocalTime strings shorter than a full ISO date-time fail to parse; java.time POJOs are not generalized). Issue names no file or class.",
-  "gold_patch_files": ["dubbo-common/src/main/java/org/apache/dubbo/common/utils/CompatibleTypeUtils.java", "dubbo-common/src/main/java/org/apache/dubbo/common/utils/PojoUtils.java"],
+  "gold_patch_files": [
+    "dubbo-common/src/main/java/org/apache/dubbo/common/utils/CompatibleTypeUtils.java",
+    "dubbo-common/src/main/java/org/apache/dubbo/common/utils/PojoUtils.java"
+  ],
   "spot_check": "All five ground truths grep-verified against the base-commit clone (bakeoff-repos/dubbo @ 43d48bd6, checked out for this set). Selected for round 6 because dubbo is the large-repo discriminating cell (4,387 files) and the issue is lookup-non-trivial.",
   "questions": [
     {
@@ -16,14 +19,14 @@
     {
       "q": "Who calls compatibleTypeConvert, and from which method?",
       "route_hint": "callpath",
-      "ground_truth_strict": "Exactly one main-source caller: PojoUtils.realize(Object, Class) (declared dubbo-common/src/main/java/org/apache/dubbo/common/utils/PojoUtils.java:222) at call site PojoUtils.java:333, inside the primitives branch that runs before history-map recursion. NOTE: the call is written as CompatibleTypeUtils.compatibleTypeConvert - naive 'grep compatibleTypeConvert(' in other files finds nothing cross-class; same-class recursion inside CompatibleTypeUtils does not exist for this method.",
-      "ground_truth_lenient": "PojoUtils (realize)",
+      "ground_truth_strict": "CORRECTED after round 6 (original GT missed a production caller): two production callers - PojoUtils.realize (call site dubbo-common/src/main/java/org/apache/dubbo/common/utils/PojoUtils.java:333, method declared :222; the graph reports the method-start line 319) and CompatibleFilter.onResponse (dubbo-rpc/dubbo-rpc-api/src/main/java/org/apache/dubbo/rpc/filter/CompatibleFilter.java:73, the non-POJO branch of the generalized-call result filter), plus the direct test caller CompatibleTypeUtilsTest.",
+      "ground_truth_lenient": "PojoUtils realize (+ CompatibleFilter)",
       "round5_note": "Same-class-call trap as gson Q2: derive caller ground truth with the graph or a bare-name grep, not 'Class.method(' patterns"
     },
     {
       "q": "Where is DATE_FORMAT declared and which methods use it?",
       "route_hint": "field-usage",
-      "ground_truth_strict": "Declared private static final String DATE_FORMAT = \"yyyy-MM-dd HH:mm:ss\" at CompatibleTypeUtils.java:35; used only inside compatibleTypeConvert - at :99 (new SimpleDateFormat(DATE_FORMAT).parse(string), the Date branch) and :112 (the exception message of that parse).",
+      "ground_truth_strict": "Declared private static final String DATE_FORMAT = \"yyyy-MM-dd HH:mm:ss\" at CompatibleTypeUtils.java:35; used only inside compatibleTypeConvert - at :99 (new SimpleDateFormat(DATE_FORMAT).parse(string), the Date branch) and :112 (the exception message of that parse). NOTE: the graph's field-usage index records one usage line per method, so a strict both-lines answer is not servable by design; score the method set (compatibleTypeConvert) plus the declaration.",
       "ground_truth_lenient": "CompatibleTypeUtils DATE_FORMAT"
     },
     {
