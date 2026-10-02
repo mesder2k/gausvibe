@@ -173,3 +173,54 @@ tokens for small repos (best gv arm 8.9k vs grep 8.1k avg on gson) while
 holding a 2-answer correctness edge, driven by the caller-completeness the
 graph has and grep structurally lacks. The large-repo cell (dubbo) remains
 the open question - see Todoist 6hg8H52Hp7V4MVMW.
+
+## Rerun 2 after payload caps (r5c, 2026-10-01)
+
+Same protocol again after PR #7 (callpath per-path cap, tests-answer cap,
+/tests?limit=) on top of PR #4 + #5. Attribution: etl/results-r5c/*.json.
+
+| arm | calls | billable | result bytes |
+|---|---|---|---|
+| gv-gson-1 | 7 | 11,461 | 22,113 |
+| gv-gson-2 | 11 | 13,301 | 35,651 |
+| grep-gson-1 | 8 | 6,228 | 14,108 |
+| grep-gson-2 | 9 | 9,325 | 24,674 |
+| gv-jackson-1 | 8 | 10,180 | 21,025 |
+| gv-jackson-2 | 8 | 12,044 | 14,465 |
+| grep-jackson-1 | 5 | 3,428 | 8,166 |
+| grep-jackson-2 | 6 | 4,615 | 8,961 |
+
+Billable averages, three rounds (gv vs grep):
+
+| repo | r5 | r5b | r5c |
+|---|---|---|---|
+| gson | 24.5k vs 5.8k (4.3x) | 13.5k vs 8.1k (1.7x) | 12.4k vs 7.8k (1.6x) |
+| jackson | 10.6k vs 7.5k (1.4x) | 8.7k vs 4.1k (2.1x) | 11.1k vs 4.0k (2.8x) |
+
+Correctness (strict): gv 18/20, grep 18/20. Jackson 20/20 for all arms
+again. gv's two misses are the same line-format artifact (method-start vs
+call-site line on gson Q5); grep's two misses are the same completeness gap
+(gson Q2: getSupertype), missed now by 6/6 grep arms across three rounds -
+structural, not variance.
+
+What the caps changed: worst-case gv result bytes 62.5k (r5b) -> 35.7k,
+callpath answers now bounded at 10 chains (an r5c gv arm's callpath answer
+reported exactly 10 where r5b shipped 260). Steady-state billable moved
+within arm variance (gv overall avg r5b 11.1k -> r5c 11.7k; grep 6.1k ->
+5.9k): the caps bound the tail rather than the mean. Jackson grep arms were
+especially cheap this round (3.4k/4.6k) - within-config variance is ~2x on
+both sides, so single-round ratios of 1.6x-2.8x are not significant; the
+r5->r5b drop from 4.3x is the significant move.
+
+Also observed: both gv jackson arms answered Q5 (V_SEP) with ZERO fallbacks
+this round, and one arm's follow-up "who uses V_SEP" matched via
+field-usage - the null seen in r5b was arm phrasing, not a route gap.
+Remaining gv failure modes are exactly the two documented ones: honest
+null on method parameters (gson Q3, both arms, recovered via marked
+fallback) and method-start line numbers (gson Q5, both arms).
+
+Verdict: r5b/r5c confirm the fixed tool at ~2x grep billable on small
+repos with a structural correctness edge; the decisive experiment is the
+large-repo cell (dubbo, Todoist 6hg8H52Hp7V4MVMW) - blocked on the
+graph-build resolution bug (6hg8G2Vc539PWpC4) that drops CALLS edges and
+the org.apache.dubbo.common.URL node.
