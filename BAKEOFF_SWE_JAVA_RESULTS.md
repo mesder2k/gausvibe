@@ -100,3 +100,29 @@ matched=null fallback path is the right seam between them.
 - Q1-style free-text "where is the X machinery" questions mis-route to
   field-usage noise before class-members recovery; a class-alias or
   semantic-locate route would remove the remaining rephrase cost.
+
+## Payload-diet verification run (r6d)
+
+After the diet (4KB answer ceiling, 10-row count-first callers, 20-row
+tests answers - PR #9 commit acfbdb2), the expensive 11781 cell was
+re-run with 4 fresh arms. Attribution: etl/results-r6d/.
+
+| arm | pre-diet billable | diet billable |
+|---|---|---|
+| gv-1 | 30,015 (74.6k resB) | 14,718 (47.6k resB) |
+| gv-2 | 18,054 (58.5k resB) | 35,180 (104k resB, 15 calls) |
+| grep avg | 6,170 | 6,600 (stable: 5.2-7.1k across all 3 runs) |
+
+Mechanically the diet works: the 57KB single-ask case is impossible and
+the best gv arm halved. But the AVERAGE is flat (24.0k -> 24.9k): capped
+answers induce narrowing - more lean probes, each re-sending the ~9-10k
+base context. gv's remaining cost is PROBE COUNT, not payload, and
+probe count varies 2x between gv arms on identical questions (7 vs 15
+calls) while grep arms are rock-stable.
+
+Levers, ranked by expected impact (follow-ups ticketed):
+1. First-shot routing quality - every mis-route costs a full call cycle
+   (class-level "who calls X" nulls, Q1 fuzzy mis-matches).
+2. Batched asks in the skill (one run_typescript program, several asks)
+   - amortizes the per-call base; r4 measured -15.6% input from batching.
+3. The ceiling stays as tail insurance regardless.
