@@ -159,28 +159,28 @@ class AskRouterRound5Test {
     }
 
     @Test
-    void askAnswersAreCappedAtMaxBytes() throws Exception {
-        // round 6: one callers answer hit 57KB - every byte enters the
-        // agent context uncached. matched() must truncate at the ceiling.
-        java.lang.reflect.Method matched = java.lang.reflect.Array.class.getDeclaredMethods()[0];
+    void longAskAnswersPaginateWithPageParameter() throws Exception {
+        // r6d: truncating capped answers induced blind re-probes. Answers
+        // now arrive as ~1.5KB pages with a followable page parameter -
+        // nothing lost, more pulled only when the agent chooses to.
         Class<?> handler = Class.forName("dk.gausdalfind.server.GausVibeServer$AskHandler");
         java.lang.reflect.Constructor<?> ctor = handler.getDeclaredConstructor();
         ctor.setAccessible(true);
         Object h = ctor.newInstance();
-        java.lang.reflect.Field maxField = handler.getDeclaredField("MAX_ANSWER_BYTES");
-        maxField.setAccessible(true);
-        int max = maxField.getInt(null);
+        java.lang.reflect.Field pageField = handler.getDeclaredField("PAGE_BYTES");
+        pageField.setAccessible(true);
+        int pageBytes = pageField.getInt(null);
         StringBuilder big = new StringBuilder();
-        for (int i = 0; i < max / 10 + 10; i++) {
+        for (int i = 0; i < pageBytes * 3 / 10 + 20; i++) {
             big.append("line ").append(i).append(" 0123456789\n");
         }
         java.lang.reflect.Method m = handler.getDeclaredMethod("matched", String.class, String.class, String.class, int.class);
         m.setAccessible(true);
         @SuppressWarnings("unchecked")
         java.util.Map<String, Object> result = (java.util.Map<String, Object>)
-            m.invoke(h, "q", "callers", big.toString(), 42);
+            m.invoke(h, "q", "tests", big.toString(), 42);
         String answer = (String) result.get("answer");
-        assertTrue(answer.length() <= max + 200, "answer must be capped, got " + answer.length());
-        assertTrue(answer.contains("truncated"), "cap must point at narrowing");
+        assertEquals(big.toString(), answer, "matched() itself no longer truncates - "
+            + "pagination is applied in the HTTP layer over the full answer");
     }
 }

@@ -987,8 +987,44 @@ public class GausVibeServer {
             // question into "?" (dubbo round-6 spot check). Only '+'
             // still needs decoding to a space.
             String question = raw.replace('+', ' ');
+            int page = 1;
+            String pageRaw = getQueryParams(exchange.getRequestURI().getQuery()).get("page");
+            if (pageRaw != null && !pageRaw.isBlank()) {
+                try {
+                    page = Math.max(1, Integer.parseInt(pageRaw.trim()));
+                } catch (NumberFormatException ignored) {
+                    // fall back to page 1
+                }
+            }
 
             Map<String, Object> result = answerQuestion(question);
+
+            // Progressive disclosure: paginate large answers instead of
+            // truncating. Page 1 is a cheap preview; the agent pulls more
+            // with page=N, or narrows. Nothing is silently lost.
+            Object answerObj = result.get("answer");
+            if (answerObj instanceof String s && s.length() > PAGE_BYTES) {
+                int absMax = 65536;
+                String full = s.length() > absMax ? s.substring(0, absMax) : s;
+                int pagesTotal = (full.length() + PAGE_BYTES - 1) / PAGE_BYTES;
+                page = Math.min(page, pagesTotal);
+                int from = (page - 1) * PAGE_BYTES;
+                int to = Math.min(full.length(), from + PAGE_BYTES);
+                int cut = full.lastIndexOf('\n', to);
+                if (cut > from) {
+                    to = cut + 1;
+                }
+                String chunk = full.substring(from, to);
+                result.put("answer", chunk
+                    + (page < pagesTotal
+                        ? "\n... [page " + page + " of " + pagesTotal
+                          + " - for the next part, ask the SAME question with page="
+                          + (page + 1) + "; narrow the question for a shorter answer]\n"
+                        : "\n... [last page, " + pagesTotal + " of " + pagesTotal
+                          + " - narrow the question for a shorter answer]\n"));
+                result.put("page", page);
+                result.put("pages_total", pagesTotal);
+            }
             
             // Stamp the response as stale when the project changed on disk
             if (staleness != null) {
@@ -2044,26 +2080,23 @@ public class GausVibeServer {
         }
 
         /**
-         * Hard ceiling on any ask answer. Round 6 measured single asks at
-         * 57KB (callers of URL.valueOf) and 9-12KB per tests ask, re-asked
-         * 2-3 times per question - all result bytes enter the agent context
-         * uncached, and this was the entire gv-vs-grep cost premium on
-         * dubbo. Truncation happens at a line boundary with a pointer to
-         * the raw endpoint.
+         * Progressive disclosure for ask answers (r6d follow-up): answers
+         * larger than PAGE_BYTES are served one page at a time. Page 1 is
+         * a cheap preview (counts first); the agent PULLS more knowingly
+         * with the page parameter instead of paying for the whole list up
+         * front - or re-probing blindly, which is what the truncate-only
+         * ceiling caused (r6d: capped answers induced narrowing probes).
+         */
+        private static final int PAGE_BYTES = 1536;
+
+        /**
+         * Hard ceiling on any ask answer - sanity bound so a pathological
+         * answer cannot be unlimited. Round 6 measured one ask at 57KB;
+         * pagination handles the rest.
          */
         private static final int MAX_ANSWER_BYTES = 4096;
 
         private Map<String, Object> matched(String question, String kind, String answer, int count) {
-            if (answer != null && answer.length() > MAX_ANSWER_BYTES) {
-                int cut = answer.lastIndexOf('\n', MAX_ANSWER_BYTES);
-                if (cut <= 0) {
-                    cut = MAX_ANSWER_BYTES;
-                }
-                int omitted = answer.length() - cut;
-                answer = answer.substring(0, cut)
-                    + "... [truncated " + omitted + " chars - narrow the question "
-                    + "(more specific method/class) or use the raw endpoint for the full list]\n";
-            }
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("question", question);
             result.put("matched", kind);

@@ -303,14 +303,26 @@ public class GausVibeMcpServer {
                 + "name from the indexed codebase. NOT free-form: no listing, enumeration, "
                 + "or partial-name search - use the search, classes, packages, or "
                 + "class_detail tools for those, and the callpath tool for execution flow. "
+                + "Long answers arrive one page at a time (~1.5KB, counts first): when the "
+                + "answer says 'page 1 of N', ask the SAME question again with the page "
+                + "parameter for the next part, or narrow the question. "
                 + "The response reports the matched query type; matched=null means GausVibe "
                 + "could not answer (the question's symbol may be a method parameter or "
                 + "local variable, which the graph does not model) - then fall back to "
                 + "grep for that question.",
             Map.of("question", Map.of("type", "string",
-                    "description", "The question, e.g. 'who calls registerHandler' or 'which tests verify MetadataCreateIndexService'")),
+                    "description", "The question, e.g. 'who calls registerHandler' or 'which tests verify MetadataCreateIndexService'"),
+                "page", Map.of("type", "integer",
+                    "description", "Answer page for long answers (default 1; the answer footer tells you when more pages exist)")),
             java.util.Set.of("question"),
-            (args, http, base) -> httpGet(http, base + "/ask?q=" + urlEncode(getString(args, "question")))));
+            (args, http, base) -> {
+                StringBuilder url = new StringBuilder(base + "/ask?q=")
+                    .append(urlEncode(getString(args, "question")));
+                if (args.has("page") && !args.get("page").isJsonNull()) {
+                    url.append("&page=").append(args.get("page").getAsInt());
+                }
+                return httpGet(http, url.toString());
+            }));
 
         put(new ToolDef("tests",
             "List the tests covering a Java class, with file paths and the coverage link "
