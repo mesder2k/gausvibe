@@ -23,11 +23,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * addAll-then-check let a single findCallPaths batch exceed it (260 chains,
  * ~40KB answer, one callpath question).
  *
- * The chains are injected through the public indexCall API because building
- * them from source hits a separate, still-open bug: call sites on
- * constructor-chained receivers (`new InterN().run()`) recorded but never
- * resolved into CALLS edges ("Resolved 3/11 call sites" - see the
- * cross-file resolution task).
+ * The chains are injected through the public indexCall API so the test
+ * stays deterministic and independent of builder resolution details (the
+ * constructor-chained receiver bug it originally worked around -
+ * "Resolved 3/11 call sites" - is fixed in ExpressionVisitor).
  */
 class CallPathCapTest {
 

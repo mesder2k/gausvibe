@@ -157,4 +157,30 @@ class AskRouterRound5Test {
         Files.createDirectories(p.getParent());
         Files.writeString(p, content);
     }
+
+    @Test
+    void askAnswersAreCappedAtMaxBytes() throws Exception {
+        // round 6: one callers answer hit 57KB - every byte enters the
+        // agent context uncached. matched() must truncate at the ceiling.
+        java.lang.reflect.Method matched = java.lang.reflect.Array.class.getDeclaredMethods()[0];
+        Class<?> handler = Class.forName("dk.gausdalfind.server.GausVibeServer$AskHandler");
+        java.lang.reflect.Constructor<?> ctor = handler.getDeclaredConstructor();
+        ctor.setAccessible(true);
+        Object h = ctor.newInstance();
+        java.lang.reflect.Field maxField = handler.getDeclaredField("MAX_ANSWER_BYTES");
+        maxField.setAccessible(true);
+        int max = maxField.getInt(null);
+        StringBuilder big = new StringBuilder();
+        for (int i = 0; i < max / 10 + 10; i++) {
+            big.append("line ").append(i).append(" 0123456789\n");
+        }
+        java.lang.reflect.Method m = handler.getDeclaredMethod("matched", String.class, String.class, String.class, int.class);
+        m.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> result = (java.util.Map<String, Object>)
+            m.invoke(h, "q", "callers", big.toString(), 42);
+        String answer = (String) result.get("answer");
+        assertTrue(answer.length() <= max + 200, "answer must be capped, got " + answer.length());
+        assertTrue(answer.contains("truncated"), "cap must point at narrowing");
+    }
 }

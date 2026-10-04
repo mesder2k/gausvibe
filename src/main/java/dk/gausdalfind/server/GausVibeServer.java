@@ -279,10 +279,17 @@ public class GausVibeServer {
             exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
             // exactly one sendResponseHeaders: the old 500 path sent 500 AND
             // fell through to a second send, throwing IllegalStateException
-            // and converting every handler error into a silent empty reply
-            exchange.sendResponseHeaders(status, response.length());
+            // and converting every handler error into a silent empty reply.
+            // Content-Length must be the UTF-8 BYTE count, not the char
+            // count: dubbo round-6 spot check - an answer containing one
+            // 71-char/79-byte value (a zh-cn doc URL) overran the declared
+            // length by 8 bytes and the connection was killed after the
+            // answer had already been computed and logged ("empty reply",
+            // nothing in the log). Any non-ASCII answer hits this.
+            byte[] body = response.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(status, body.length);
             try (OutputStream os = exchange.getResponseBody()) {
-                os.write(response.getBytes(StandardCharsets.UTF_8));
+                os.write(body);
             }
         }
         
@@ -938,6 +945,11 @@ public class GausVibeServer {
 
         private static final int MAX_LINES = 50;
 
+        /** Tests-answer row cap: round 6 measured 50 rows x ~200B
+         * (FQN + path + coverage) = 9-12KB per ask, re-asked 2-3x
+         * per question. 20 rows keeps the direct coverage visible. */
+        private static final int MAX_TEST_ROWS = 20;
+
         private static final java.util.regex.Pattern TEST_QUESTION = java.util.regex.Pattern.compile(
             "\\btest(s|ed|ing)?\\b|\\bverif(y|ies|ied)\\b|\\bassert", java.util.regex.Pattern.CASE_INSENSITIVE);
 
@@ -969,12 +981,12 @@ public class GausVibeServer {
                 return responseJson(400, Map.of("error", "Missing 'q' parameter"));
             }
 
-            String question;
-            try {
-                question = java.net.URLDecoder.decode(raw, StandardCharsets.UTF_8);
-            } catch (IllegalArgumentException e) {
-                return responseJson(400, Map.of("error", "Malformed query encoding"));
-            }
+            // The JDK's HttpServer (19+) already percent-DECODES
+            // getRequestURI().getQuery() once - an explicit URLDecoder
+            // here decoded a second time, turning a literal "%3F" in a
+            // question into "?" (dubbo round-6 spot check). Only '+'
+            // still needs decoding to a space.
+            String question = raw.replace('+', ' ');
 
             Map<String, Object> result = answerQuestion(question);
             
@@ -1382,7 +1394,7 @@ public class GausVibeServer {
                         // big suites listed 314 classes / 59KB (dubbo
                         // round-6 spot check). The header count and the
                         // result count stay the true totals.
-                        if (shown < MAX_LINES) {
+                        if (shown < MAX_TEST_ROWS) {
                             Map<?, ?> tm = (Map<?, ?>) t;
                             sb.append("  - ").append(tm.get("test_class"));
                             Object file = tm.get("file");
@@ -1614,6 +1626,13 @@ public class GausVibeServer {
                 if (fields.isEmpty()) {
                     continue;
                 }
+                // a candidate that also names a CLASS is a class reference,
+                // not a field: 'who calls URLStrParser to turn raw URL
+                // strings...' must not answer usages of a test field that
+                // happens to be named URL (dubbo round-6 spot check)
+                if (!queryEngine.findClassesByName(c).isEmpty()) {
+                    continue;
+                }
                 StringBuilder sb = new StringBuilder();
                 int total = 0;
                 for (FieldNode f : fields) {
@@ -1662,7 +1681,10 @@ public class GausVibeServer {
                 List<MethodNode> callers = queryEngine.getCallers(m);
                 sb.append("  ").append(m.getSignature()).append(" <- ")
                   .append(callers.size()).append(" caller(s)\n");
-                for (int i = 0; i < Math.min(callers.size(), MAX_LINES); i++) {
+                // count-first, 10 rows: round 6 measured 50 rows x ~120B on
+                // hub methods (URL.valueOf: 57KB answer); the count line is
+                // often the whole answer the agent needs
+                for (int i = 0; i < Math.min(callers.size(), 10); i++) {
                     MethodNode caller = callers.get(i);
                     sb.append("    - ").append(caller.getQualifiedName());
                     if (caller.getFile() != null) {
@@ -1673,6 +1695,11 @@ public class GausVibeServer {
                         sb.append("]");
                     }
                     sb.append("\n");
+                }
+                if (callers.size() > 10) {
+                    sb.append("    ... and ").append(callers.size() - 10)
+                      .append(" more caller(s) - ask about a more specific ")
+                      .append("method signature or class to narrow\n");
                 }
                 total += callers.size();
             }
@@ -2016,7 +2043,27 @@ public class GausVibeServer {
             }
         }
 
+        /**
+         * Hard ceiling on any ask answer. Round 6 measured single asks at
+         * 57KB (callers of URL.valueOf) and 9-12KB per tests ask, re-asked
+         * 2-3 times per question - all result bytes enter the agent context
+         * uncached, and this was the entire gv-vs-grep cost premium on
+         * dubbo. Truncation happens at a line boundary with a pointer to
+         * the raw endpoint.
+         */
+        private static final int MAX_ANSWER_BYTES = 4096;
+
         private Map<String, Object> matched(String question, String kind, String answer, int count) {
+            if (answer != null && answer.length() > MAX_ANSWER_BYTES) {
+                int cut = answer.lastIndexOf('\n', MAX_ANSWER_BYTES);
+                if (cut <= 0) {
+                    cut = MAX_ANSWER_BYTES;
+                }
+                int omitted = answer.length() - cut;
+                answer = answer.substring(0, cut)
+                    + "... [truncated " + omitted + " chars - narrow the question "
+                    + "(more specific method/class) or use the raw endpoint for the full list]\n";
+            }
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("question", question);
             result.put("matched", kind);
